@@ -1,0 +1,7 @@
+/build/
+/data/*
+!/data/.gitkeep
+*.o
+*.gcda
+*.gcno
+__pycache__/

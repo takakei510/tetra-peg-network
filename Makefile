@@ -12,6 +12,8 @@ build/test_foundation: tests/test_foundation.c $(CORE) | build
 	$(CC) $(CPPFLAGS) $(CFLAGS) $^ -o $@
 build/demo_molecule: src/demo_molecule.c $(CORE) | build
 	$(CC) $(CPPFLAGS) $(CFLAGS) $^ -o $@
+build/demo_two_molecules: src/demo_two_molecules.c $(CORE) | build
+	$(CC) $(CPPFLAGS) $(CFLAGS) $^ -o $@
 build/test_molecule: tests/test_molecule.c $(CORE) | build
 	$(CC) $(CPPFLAGS) $(CFLAGS) $^ -o $@
 test: build/test_foundation build/test_molecule

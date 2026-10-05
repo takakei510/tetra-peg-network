@@ -50,6 +50,24 @@ int main(void) {
     assert(molecule_try_generate(&a,&x,&r,s0,-1)==GEN_INVALID_CONFIG);
     MoleculeStore bad={0};assert(molecule_store_init(&bad,SIZE_MAX,5));
     FILE *fp=tmpfile();assert(fp && !molecule_write_csv(fp,&b,&y));fclose(fp);
+    /* 1個目の腕上を中心に選んだ場合も、既存分子を変更せず棄却する。 */
+    size_t first_paths[20]; unsigned char first_directions[20];
+    memcpy(first_paths,y.path_sites,sizeof first_paths);
+    memcpy(first_directions,y.path_directions,sizeof first_directions);
+    Molecule first=y.molecules[0];
+    assert(molecule_try_generate(&b,&y,&q,y.path_sites[0],0)==GEN_CENTER_OCCUPIED);
+    /* 既存A分子を残した格子へ、B分子を追加する。失敗時は中心を再抽選。 */
+    size_t attempts=0;
+    while(y.count<2 && attempts++<10000) {
+        GenerationStatus status=molecule_try_generate(&b,&y,&q,
+            (size_t)rng_bounded(&q,b.n_sites),0);
+        assert(status==GEN_SUCCESS || status==GEN_CENTER_OCCUPIED || status==GEN_TRAPPED);
+    }
+    assert(y.count==2 && y.molecules[1].type==TYPE_B);
+    assert(y.molecules[0].type==first.type && y.molecules[0].center_site==first.center_site);
+    assert(!memcmp(first_paths,y.path_sites,sizeof first_paths));
+    assert(!memcmp(first_directions,y.path_directions,sizeof first_directions));
+    check_shape(&b,&y); /* 42点・owner・最近接・全分子間の重複なし。 */
     molecule_store_free(&x);molecule_store_free(&y);lattice_free(&a);lattice_free(&b);
     puts("molecule tests passed");return 0;
 }

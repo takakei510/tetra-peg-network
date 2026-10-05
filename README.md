@@ -4,7 +4,9 @@ Research code for Tetra-PEG type AB-SAW gelation and molecular network analysis.
 
 ## Current status
 
-This first stage provides only the simulation foundation. Molecular placement, SAW growth, AB bonding, graph measurements, and CSV output are **not implemented yet**. The physical definitions and boundary conditions for those stages must be fixed against the supervisor's model before implementation.
+The foundation and a minimal single-molecule demo are implemented: four sequential SAW arms, shared site ownership, full rollback on trapping, trajectory CSV, and Python 3D visualization. Growth currently chooses uniformly among unoccupied nearest neighbors with open boundaries. These are provisional conditions to confirm with the supervisor. Multi-molecule placement, AB bonding, and graph measurements are not implemented yet.
+
+For CSV generation and plotting instructions, see [molecule visualization](docs/molecule-visualization.md). The Python script is `scripts/visualization/plot_molecule.py`; Matplotlib is needed only for visualization.
 
 ## Build and run
 

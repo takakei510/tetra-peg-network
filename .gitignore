@@ -5,3 +5,4 @@
 *.gcda
 *.gcno
 __pycache__/
+.venv/

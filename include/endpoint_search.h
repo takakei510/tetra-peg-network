@@ -8,12 +8,12 @@
  */
 typedef struct {
     size_t *endpoint_at_site; /* SIZE_MAX = 末端なし。中心や腕途中の点も同じ値。 */
-    size_t n_sites, endpoint_count;
+    size_t n_sites, endpoint_count; /* 格子の総点数と、登録した末端数（4×分子数）。 */
 } EndpointIndex;
-typedef struct { size_t endpoint_a, endpoint_b; } CandidatePair;
+typedef struct { size_t endpoint_a, endpoint_b; } CandidatePair; /* ID順の2末端。 */
 typedef struct {
     CandidatePair *pairs;
-    size_t count, capacity;
+    size_t count, capacity; /* 保存済みの候補数と、確保済みの配列要素数。 */
 } CandidateStore;
 typedef struct {
     size_t offsets_tested; /* 境界外も含め、確認した相対位置数 */

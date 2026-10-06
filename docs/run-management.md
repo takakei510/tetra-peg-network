@@ -21,7 +21,7 @@ python scripts/run_demo.py --mode two --config configs/local/my-two.cfg
 
 ## 1回の結果フォルダ
 
-`data/runs/<UTC日時>_<singleまたはtwo>_<識別子>/` に毎回新規保存する。
+`data/runs/<UTC日時>_<single・two・candidates>_<識別子>/` に毎回新規保存する。
 同じ条件で再実行しても上書きしない。フォルダ名はUTCを示すZ付きで、日本時間とは9時間差がある。
 
 | ファイル | 用途 |
@@ -64,6 +64,13 @@ Git対象外は自動バックアップされるという意味ではない。�
 
 ## 今後の拡張
 
-生成条件の設定化、候補CSV、結合CSV、クラスタ集計も同じ実行フォルダへ追加する。
+生成条件の設定化、結合CSV、クラスタ集計も同じ実行フォルダへ追加する。
 大規模実験ではコードの控えを各試行で複製せず、共通のコード版と試行IDで整理する方式へ拡張する。
 並行実験は専用の実行基盤で扱う。現行ラッパーの共有buildディレクトリへの同時ビルドは想定していない。
+
+## ③-Aの候補探索
+
+`--mode candidates --config configs/demos/candidates_L8_seed3.cfg` で
+既存の保存内容に `candidates.csv` を追加する。画像には候補を緑点線で表示する。
+候補0件も正常。距離規則は固定のmanhattan・半径2で、metadataからrun.jsonへ記録する。
+候補は未確定のペアであり、結合数ではない。詳しくはendpoint-search.md参照。

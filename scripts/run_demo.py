@@ -59,7 +59,7 @@ def csv_summary(path):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--mode", required=True, choices=["single", "two"])
+    parser.add_argument("--mode", required=True, choices=["single", "two", "candidates"])
     parser.add_argument("--config", required=True, type=Path,
                         help="実行条件のcfg。相対パスは現在の作業ディレクトリ基準")
     parser.add_argument("--no-plot", action="store_true",
@@ -75,10 +75,13 @@ def main():
     run = ROOT / "data" / "runs" / run_id
     run.mkdir(parents=True, exist_ok=False)
     (run / "config.cfg").write_bytes(config.read_bytes())
-    binary_name = "demo_molecule" if args.mode == "single" else "demo_two_molecules"
+    binary_name = {"single": "demo_molecule", "two": "demo_two_molecules",
+                   "candidates": "demo_candidates"}[args.mode]
     plot_name = "plot_molecule.py" if args.mode == "single" else "plot_molecules.py"
     binary = ROOT / "build" / binary_name
     command = [str(binary), str(run / "config.cfg")]
+    if args.mode == "candidates":
+        command.append(str(run / "candidates.csv"))
     manifest = {"schema_version": 1, "run_id": run_id,
                 "started_at_utc": started.isoformat(), "mode": args.mode,
                 "config_source": str(config), "status": "running",
@@ -90,6 +93,9 @@ def main():
                 "files": {"config": "config.cfg", "trajectories": "trajectories.csv",
                           "metadata": "metadata.log", "source": "source.zip",
                           "build_log": "build.log"}}
+
+    if args.mode == "candidates":
+        manifest["files"]["candidates"] = "candidates.csv"
 
     def save_manifest():
         # 保存途中で途切れても、直前に完成したJSONを残す。
@@ -128,6 +134,8 @@ def main():
         if not args.no_plot:
             plot_command = [sys.executable, str(ROOT / "scripts" / "visualization" / plot_name),
                             str(run / "trajectories.csv"), "--output", str(run / "molecules.png")]
+            if args.mode == "candidates":
+                plot_command.extend(["--candidates", str(run / "candidates.csv")])
             manifest["plot_command"] = plot_command
             manifest["files"]["plot_log"] = "plot.log"
             with (run / "plot.log").open("w") as log:

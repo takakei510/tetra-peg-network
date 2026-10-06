@@ -39,7 +39,40 @@ def read_molecules(csv_path):
     return molecules, len(occupied)
 
 
-def draw_molecules(molecules, occupied_count, output, dpi, show=False):
+def read_candidates(csv_path, molecules):
+    """候補CSVを軌跡と照合する。点線は潜在ペアであり結合ではない。"""
+    pairs, seen = [], set()
+    with csv_path.open(newline="", encoding="utf-8-sig") as stream:
+        reader = csv.DictReader(stream)
+        required = {"endpoint_a", "endpoint_b", "molecule_a", "molecule_b",
+                    "arm_a", "arm_b", "type_a", "type_b", "manhattan_distance"}
+        required.update(f"{axis}_{side}" for axis in "xyz" for side in "ab")
+        if not required.issubset(reader.fieldnames or []):
+            raise ValueError("候補CSVの列が不足しています")
+        for row in reader:
+            ids = tuple(int(row[f"endpoint_{side}"]) for side in "ab")
+            if ids[0] >= ids[1] or ids in seen:
+                raise ValueError("候補IDの順序または重複が不正です")
+            points, kinds = [], []
+            for side, endpoint in zip("ab", ids):
+                m, arm = int(row[f"molecule_{side}"]), int(row[f"arm_{side}"])
+                if endpoint != 4*m + arm or not 0 <= arm < 4:
+                    raise ValueError("末端IDと分子・腕IDが一致しません")
+                point = tuple(int(row[f"{axis}_{side}"]) for axis in "xyz")
+                _, kind, paths = molecules[m]
+                if point != paths[arm][-1] or kind != row[f"type_{side}"]:
+                    raise ValueError("候補の末端位置・型と軌跡が一致しません")
+                points.append(point)
+                kinds.append(kind)
+            distance = sum(abs(a-b) for a, b in zip(*points))
+            if kinds[0] == kinds[1] or not 1 <= distance <= 2 or distance != int(row["manhattan_distance"]):
+                raise ValueError("A-B条件または距離条件に違反しています")
+            seen.add(ids)
+            pairs.append(tuple(points))
+    return pairs
+
+
+def draw_molecules(molecules, occupied_count, output, dpi, show=False, candidates=None):
     """A/Bを色、中心と末端を形で区別し、絶対座標で保存する。"""
     import matplotlib
     if not show:
@@ -61,7 +94,13 @@ def draw_molecules(molecules, occupied_count, output, dpi, show=False):
                        s=55, depthshade=False)
         ax.scatter(*center, color="black", s=95, depthshade=False)
         ax.text(*center, f"  {kind}{molecule_id}", color="black", fontsize=11)
-    # 黒丸と四角の説明も凡例に加える。結合線はまだ描かない。
+    # 候補は点線で描き、確定した結合と誤認しない凡例を付ける。
+    if candidates is not None:
+        for i, (start, end) in enumerate(candidates):
+            xs, ys, zs = zip(start, end)
+            ax.plot(xs, ys, zs, "--", color="#23854B", linewidth=2.5,
+                    label="Candidate (not bond)" if i == 0 else None)
+    # 黒丸と四角の説明も凡例に加える。
     ax.scatter([], [], [], color="black", s=70, label="Center")
     ax.scatter([], [], [], color="#777777", marker="s", s=55, label="Endpoint")
     ranges = [(min(p[i] for p in all_points), max(p[i] for p in all_points))
@@ -73,8 +112,8 @@ def draw_molecules(molecules, occupied_count, output, dpi, show=False):
     ax.set_box_aspect((1, 1, 1))
     for axis, setter in zip("xyz", (ax.set_xlabel, ax.set_ylabel, ax.set_zlabel)):
         setter(axis, labelpad=2)
-    ax.set_title(f"{len(molecules)} molecules, {occupied_count} occupied sites\n"
-                 "Absolute coordinates, no bonds")
+    detail = "Absolute coordinates, no bonds" if candidates is None else f"{len(candidates)} candidate pairs, no bonds"
+    ax.set_title(f"{len(molecules)} molecules, {occupied_count} occupied sites\n" + detail)
     ax.view_init(elev=24, azim=-55)
     ax.legend(loc="upper left", fontsize=10)
     fig.tight_layout()
@@ -93,12 +132,14 @@ def main():
     parser.add_argument("--output", type=Path, default=Path("data/two-molecules.png"))
     parser.add_argument("--dpi", type=int, default=300)
     parser.add_argument("--show", action="store_true")
+    parser.add_argument("--candidates", type=Path, help="③-Aの候補CSV。確定結合ではない")
     args = parser.parse_args()
     if args.dpi <= 0:
         parser.error("dpiは正にしてください")
     try:
         molecules, occupied_count = read_molecules(args.csv)
-        draw_molecules(molecules, occupied_count, args.output, args.dpi, args.show)
+        candidates = read_candidates(args.candidates, molecules) if args.candidates else None
+        draw_molecules(molecules, occupied_count, args.output, args.dpi, args.show, candidates)
     except (ValueError, OSError, ImportError, TypeError, KeyError) as error:
         print(f"Error: {error}", file=sys.stderr)
         return 1

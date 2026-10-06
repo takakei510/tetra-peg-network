@@ -12,6 +12,14 @@ For the two-molecule demo (one fixed A and one fixed B), see [two molecules](doc
 
 ## Build and run
 
+To keep each demo's configuration, CSV, plot, logs, and source snapshot together without overwriting previous results, use:
+
+```sh
+python scripts/run_demo.py --mode two --config configs/demos/two_L8_seed12345.cfg
+```
+
+Results go to a new `data/runs/` folder per execution. See [run management](docs/run-management.md) and [configuration presets](configs/README.md). Add `--no-plot` for CSV-only runs. This runner uses the existing demo conditions; it does not make hardcoded arm length or molecule counts configurable.
+
 Requires a C11 compiler and Make.
 
 ```sh

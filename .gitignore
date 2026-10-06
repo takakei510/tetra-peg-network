@@ -6,3 +6,4 @@
 *.gcno
 __pycache__/
 .venv/
+/configs/local/

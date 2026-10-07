@@ -72,7 +72,26 @@ def read_candidates(csv_path, molecules):
     return pairs
 
 
-def draw_molecules(molecules, occupied_count, output, dpi, show=False, candidates=None):
+def read_bonds(csv_path, molecules):
+    """候補用の型・座標・距離検証を再利用し、1末端1結合も確認する。"""
+    pairs = read_candidates(csv_path, molecules)
+    used = set()
+    with csv_path.open(newline="", encoding="utf-8-sig") as stream:
+        reader = csv.DictReader(stream)
+        if "bond_id" not in (reader.fieldnames or []):
+            raise ValueError("結合CSVにbond_id列がありません")
+        for expected, row in enumerate(reader):
+            if int(row["bond_id"]) != expected:
+                raise ValueError("結合IDが成立順の連番ではありません")
+            for side in "ab":
+                endpoint = int(row[f"endpoint_{side}"])
+                if endpoint in used:
+                    raise ValueError("同じ末端が複数の結合に使われています")
+                used.add(endpoint)
+    return pairs
+
+
+def draw_molecules(molecules, occupied_count, output, dpi, show=False, candidates=None, bonds=None):
     """A/Bを色、中心と末端を形で区別し、絶対座標で保存する。"""
     import matplotlib
     if not show:
@@ -100,6 +119,12 @@ def draw_molecules(molecules, occupied_count, output, dpi, show=False, candidate
             xs, ys, zs = zip(start, end)
             ax.plot(xs, ys, zs, "--", color="#23854B", linewidth=2.5,
                     label="Candidate (not bond)" if i == 0 else None)
+    # 結合CSVのペアは実線。線は接続の表示であり、格子経路の生成ではない。
+    if bonds is not None:
+        for i, (start, end) in enumerate(bonds):
+            xs, ys, zs = zip(start, end)
+            ax.plot(xs, ys, zs, "-", color="#23854B", linewidth=3.0,
+                    label="Bond" if i == 0 else None)
     # 黒丸と四角の説明も凡例に加える。
     ax.scatter([], [], [], color="black", s=70, label="Center")
     ax.scatter([], [], [], color="#777777", marker="s", s=55, label="Endpoint")
@@ -113,6 +138,8 @@ def draw_molecules(molecules, occupied_count, output, dpi, show=False, candidate
     for axis, setter in zip("xyz", (ax.set_xlabel, ax.set_ylabel, ax.set_zlabel)):
         setter(axis, labelpad=2)
     detail = "Absolute coordinates, no bonds" if candidates is None else f"{len(candidates)} candidate pairs, no bonds"
+    if bonds is not None:
+        detail = f"{len(bonds)} bonds, each endpoint used at most once"
     ax.set_title(f"{len(molecules)} molecules, {occupied_count} occupied sites\n" + detail)
     ax.view_init(elev=24, azim=-55)
     ax.legend(loc="upper left", fontsize=10)
@@ -133,13 +160,17 @@ def main():
     parser.add_argument("--dpi", type=int, default=300)
     parser.add_argument("--show", action="store_true")
     parser.add_argument("--candidates", type=Path, help="③-Aの候補CSV。確定結合ではない")
+    parser.add_argument("--bonds", type=Path, help="③-Bの確定結合CSV")
     args = parser.parse_args()
+    if args.bonds and args.candidates:
+        parser.error("候補図と結合図は別々に出力してください")
     if args.dpi <= 0:
         parser.error("dpiは正にしてください")
     try:
         molecules, occupied_count = read_molecules(args.csv)
         candidates = read_candidates(args.candidates, molecules) if args.candidates else None
-        draw_molecules(molecules, occupied_count, args.output, args.dpi, args.show, candidates)
+        bonds = read_bonds(args.bonds, molecules) if args.bonds else None
+        draw_molecules(molecules, occupied_count, args.output, args.dpi, args.show, candidates, bonds)
     except (ValueError, OSError, ImportError, TypeError, KeyError) as error:
         print(f"Error: {error}", file=sys.stderr)
         return 1

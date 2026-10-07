@@ -4,7 +4,7 @@ Research code for Tetra-PEG type AB-SAW gelation and molecular network analysis.
 
 ## Current status
 
-The foundation, a single-molecule demo, and a fixed two-molecule placement demo are implemented: four sequential SAW arms, shared site ownership, full rollback on trapping, trajectory CSV, and Python 3D visualization. Growth currently chooses uniformly among unoccupied nearest neighbors with open boundaries. These are provisional conditions to confirm with the supervisor. Manhattan-radius-2 endpoint candidate search is now implemented (stage 3-A). General configurable multi-molecule placement, AB bonding, and graph measurements are not implemented yet.
+The foundation, a single-molecule demo, and a fixed two-molecule placement demo are implemented: four sequential SAW arms, shared site ownership, full rollback on trapping, trajectory CSV, and Python 3D visualization. Growth currently chooses uniformly among unoccupied nearest neighbors with open boundaries. These are provisional conditions to confirm with the supervisor. Manhattan-radius-2 endpoint candidate search is now implemented (stage 3-A). Endpoint-order random AB bonding is implemented (stage 3-B), with at most one bond per endpoint and optional molecular multibonds. General configurable multi-molecule placement and graph measurements are not implemented yet.
 
 For CSV generation and plotting instructions, see [molecule visualization](docs/molecule-visualization.md). The Python script is `scripts/visualization/plot_molecule.py`; Matplotlib is needed only for visualization.
 
@@ -47,4 +47,12 @@ The old `percolation-model` repository was consulted for module boundaries. Its 
 python scripts/run_demo.py --mode candidates --config configs/demos/candidates_L8_seed3.cfg
 ```
 
-This saves `candidates.csv` alongside trajectories and draws potential pairs as dashed lines. No bonds are selected yet. See [endpoint search](docs/endpoint-search.md) for the index design, complexity, validation, and code reuse.
+This saves `candidates.csv` alongside trajectories and draws potential pairs as dashed lines. This candidates-only mode does not select bonds. See [endpoint search](docs/endpoint-search.md) for the index design, complexity, validation, and code reuse.
+
+## Random endpoint bonding (stage 3-B)
+
+```sh
+python scripts/run_demo.py --mode bonds --config configs/demos/bonds_L8_seed3.cfg
+```
+
+All endpoint IDs are shuffled, then each free endpoint chooses uniformly from its currently free candidate partners. The demo allows separate arms to connect the same molecule pair more than once. It saves both `candidates.csv` and `bonds.csv` and draws selected bonds as solid green lines. See [endpoint bonding](docs/endpoint-bonding.md) for the rule, data structures, validation, and limitations. Union-find cluster analysis comes next.

@@ -1,7 +1,7 @@
 CC ?= cc
 CFLAGS ?= -O2 -std=c11 -Wall -Wextra -Wpedantic -Werror
 CPPFLAGS ?= -Iinclude
-CORE = src/config.c src/rng.c src/lattice.c src/union_find.c src/molecule.c src/endpoint_search.c
+CORE = src/config.c src/rng.c src/lattice.c src/union_find.c src/molecule.c src/endpoint_search.c src/bond.c
 .PHONY: all test clean
 all: build/tetra-peg-network
 build:
@@ -20,7 +20,12 @@ build/demo_candidates: src/demo_candidates.c $(CORE) | build
 	$(CC) $(CPPFLAGS) $(CFLAGS) $^ -o $@
 build/test_endpoint_search: tests/test_endpoint_search.c $(CORE) | build
 	$(CC) $(CPPFLAGS) $(CFLAGS) $^ -o $@
-test: build/test_foundation build/test_molecule build/test_endpoint_search
+build/demo_bonds: src/demo_bonds.c $(CORE) | build
+	$(CC) $(CPPFLAGS) $(CFLAGS) $^ -o $@
+build/test_bond: tests/test_bond.c $(CORE) | build
+	$(CC) $(CPPFLAGS) $(CFLAGS) $^ -o $@
+test: build/test_bond build/test_foundation build/test_molecule build/test_endpoint_search
+	./build/test_bond
 	./build/test_foundation
 	./build/test_molecule
 	./build/test_endpoint_search

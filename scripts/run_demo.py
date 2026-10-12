@@ -59,7 +59,7 @@ def csv_summary(path):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--mode", required=True, choices=["single", "two", "candidates", "bonds"])
+    parser.add_argument("--mode", required=True, choices=["single", "two", "candidates", "bonds", "clusters"])
     parser.add_argument("--config", required=True, type=Path,
                         help="実行条件のcfg。相対パスは現在の作業ディレクトリ基準")
     parser.add_argument("--no-plot", action="store_true",
@@ -76,14 +76,17 @@ def main():
     run.mkdir(parents=True, exist_ok=False)
     (run / "config.cfg").write_bytes(config.read_bytes())
     binary_name = {"single": "demo_molecule", "two": "demo_two_molecules",
-                   "candidates": "demo_candidates", "bonds": "demo_bonds"}[args.mode]
+                   "candidates": "demo_candidates", "bonds": "demo_bonds", "clusters": "demo_clusters"}[args.mode]
     plot_name = "plot_molecule.py" if args.mode == "single" else "plot_molecules.py"
     binary = ROOT / "build" / binary_name
     command = [str(binary), str(run / "config.cfg")]
-    if args.mode in ("candidates", "bonds"):
+    if args.mode in ("candidates", "bonds", "clusters"):
         command.append(str(run / "candidates.csv"))
-    if args.mode == "bonds":
+    if args.mode in ("bonds", "clusters"):
         command.append(str(run / "bonds.csv"))
+    if args.mode == "clusters":
+        command.extend(str(run / name) for name in
+                       ("cluster-members.csv", "cluster-summary.csv", "network-summary.csv"))
     manifest = {"schema_version": 1, "run_id": run_id,
                 "started_at_utc": started.isoformat(), "mode": args.mode,
                 "config_source": str(config), "status": "running",
@@ -96,10 +99,14 @@ def main():
                           "metadata": "metadata.log", "source": "source.zip",
                           "build_log": "build.log"}}
 
-    if args.mode in ("candidates", "bonds"):
+    if args.mode in ("candidates", "bonds", "clusters"):
         manifest["files"]["candidates"] = "candidates.csv"
-    if args.mode == "bonds":
+    if args.mode in ("bonds", "clusters"):
         manifest["files"]["bonds"] = "bonds.csv"
+    if args.mode == "clusters":
+        manifest["files"].update({"cluster_members": "cluster-members.csv",
+                                  "cluster_summary": "cluster-summary.csv",
+                                  "network_summary": "network-summary.csv"})
 
     def save_manifest():
         # 保存途中で途切れても、直前に完成したJSONを残す。
@@ -140,7 +147,7 @@ def main():
                             str(run / "trajectories.csv"), "--output", str(run / "molecules.png")]
             if args.mode == "candidates":
                 plot_command.extend(["--candidates", str(run / "candidates.csv")])
-            if args.mode == "bonds":
+            if args.mode in ("bonds", "clusters"):
                 plot_command.extend(["--bonds", str(run / "bonds.csv")])
             manifest["plot_command"] = plot_command
             manifest["files"]["plot_log"] = "plot.log"

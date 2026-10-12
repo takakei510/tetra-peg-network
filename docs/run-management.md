@@ -21,7 +21,7 @@ python scripts/run_demo.py --mode two --config configs/local/my-two.cfg
 
 ## 1回の結果フォルダ
 
-`data/runs/<UTC日時>_<single・two・candidates・bonds>_<識別子>/` に毎回新規保存する。
+`data/runs/<UTC日時>_<single・two・candidates・bonds・clusters>_<識別子>/` に毎回新規保存する。
 同じ条件で再実行しても上書きしない。フォルダ名はUTCを示すZ付きで、日本時間とは9時間差がある。
 
 | ファイル | 用途 |
@@ -64,7 +64,7 @@ Git対象外は自動バックアップされるという意味ではない。�
 
 ## 今後の拡張
 
-生成条件の設定化、クラスタ集計も同じ実行フォルダへ追加する。
+生成条件の設定化、大規模な統計集計も同じ実行フォルダへ追加する。
 大規模実験ではコードの控えを各試行で複製せず、共通のコード版と試行IDで整理する方式へ拡張する。
 並行実験は専用の実行基盤で扱う。現行ラッパーの共有buildディレクトリへの同時ビルドは想定していない。
 
@@ -81,3 +81,11 @@ Git対象外は自動バックアップされるという意味ではない。�
 `candidates.csv`と`bonds.csv`を両方保存する。図は確定結合の緑実線。
 結合規則・多重結合の条件・結合数と率をmetadataとrun.jsonへ記録する。
 候補・結合が0件でも正常。詳しくはendpoint-bonding.md参照。
+
+## ③-Cのクラスタ集計
+
+`--mode clusters --config configs/demos/clusters_L8_seed3.cfg`で③-Bと同じ生成・結合を使い、
+cluster-members.csv、cluster-summary.csv、network-summary.csvを追加保存する。
+図は③-Bと同じ確定結合図。クラスタの所属とサイズはCSVで確認する。
+孤立分子も含め、クラスタ方式・ID規則・集計結果をmetadataとrun.jsonへ記録する。
+詳しくはmolecular-clusters.md参照。

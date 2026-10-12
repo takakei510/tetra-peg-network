@@ -4,7 +4,7 @@ Research code for Tetra-PEG type AB-SAW gelation and molecular network analysis.
 
 ## Current status
 
-The foundation, a single-molecule demo, and a fixed two-molecule placement demo are implemented: four sequential SAW arms, shared site ownership, full rollback on trapping, trajectory CSV, and Python 3D visualization. Growth currently chooses uniformly among unoccupied nearest neighbors with open boundaries. These are provisional conditions to confirm with the supervisor. Manhattan-radius-2 endpoint candidate search is now implemented (stage 3-A). Endpoint-order random AB bonding is implemented (stage 3-B), with at most one bond per endpoint and optional molecular multibonds. General configurable multi-molecule placement and graph measurements are not implemented yet.
+The foundation, a single-molecule demo, and a fixed two-molecule placement demo are implemented: four sequential SAW arms, shared site ownership, full rollback on trapping, trajectory CSV, and Python 3D visualization. Growth currently chooses uniformly among unoccupied nearest neighbors with open boundaries. These are provisional conditions to confirm with the supervisor. Manhattan-radius-2 endpoint candidate search is now implemented (stage 3-A). Endpoint-order random AB bonding is implemented (stage 3-B), with at most one bond per endpoint and optional molecular multibonds. Molecule-level connected-component summaries are implemented with the existing union-find foundation (stage 3-C). General configurable multi-molecule placement and broader graph measurements are not implemented yet.
 
 For CSV generation and plotting instructions, see [molecule visualization](docs/molecule-visualization.md). The Python script is `scripts/visualization/plot_molecule.py`; Matplotlib is needed only for visualization.
 
@@ -55,4 +55,12 @@ This saves `candidates.csv` alongside trajectories and draws potential pairs as 
 python scripts/run_demo.py --mode bonds --config configs/demos/bonds_L8_seed3.cfg
 ```
 
-All endpoint IDs are shuffled, then each free endpoint chooses uniformly from its currently free candidate partners. The demo allows separate arms to connect the same molecule pair more than once. It saves both `candidates.csv` and `bonds.csv` and draws selected bonds as solid green lines. See [endpoint bonding](docs/endpoint-bonding.md) for the rule, data structures, validation, and limitations. Union-find cluster analysis comes next.
+All endpoint IDs are shuffled, then each free endpoint chooses uniformly from its currently free candidate partners. The demo allows separate arms to connect the same molecule pair more than once. It saves both `candidates.csv` and `bonds.csv` and draws selected bonds as solid green lines. See [endpoint bonding](docs/endpoint-bonding.md) for the rule, data structures, validation, and limitations. Use the clusters mode below for union-find summaries.
+
+## Molecular clusters (stage 3-C)
+
+```sh
+python scripts/run_demo.py --mode clusters --config configs/demos/clusters_L8_seed3.cfg
+```
+
+This keeps the same placement and bonds and adds per-molecule memberships, per-cluster sizes/bond counts, and a network summary. Isolated molecules are included. Multiple bonds between a molecule pair retain their bond count while union-find joins the molecules only once. See [molecular clusters](docs/molecular-clusters.md) for why UF is used, how it differs from bond storage, complexity, and BFS validation. This is a small demonstration, not a gelation measurement.

@@ -91,7 +91,7 @@ def read_bonds(csv_path, molecules):
     return pairs
 
 
-def draw_molecules(molecules, occupied_count, output, dpi, show=False, candidates=None, bonds=None):
+def draw_molecules(molecules, occupied_count, output, dpi, show=False, candidates=None, bonds=None, incomplete=False):
     """A/Bを色、中心と末端を形で区別し、絶対座標で保存する。"""
     import matplotlib
     if not show:
@@ -102,17 +102,28 @@ def draw_molecules(molecules, occupied_count, output, dpi, show=False, candidate
     ax = fig.add_subplot(111, projection="3d")
     colors = {"A": "#4472C4", "B": "#C0504D"}
     all_points = []
+    labelled_types = set()
+    compact = len(molecules) > 6
     for molecule_id, (center, kind, paths) in molecules.items():
         for arm, path in paths.items():
             all_points.extend(path)
             xs, ys, zs = zip(*path)
-            # 凡例は分子ごとに1項目。4本の腕は同じ型の色で描く。
+            # 多分子時は型ごとの凡例にまとめ、図を長い凡例で隠さない。
+            label = None
+            if arm == 0:
+                if not compact:
+                    label = f"Molecule {molecule_id} ({kind})"
+                elif kind not in labelled_types:
+                    count = sum(item[1] == kind for item in molecules.values())
+                    label = f"Type {kind} ({count} molecules)"
+                    labelled_types.add(kind)
             ax.plot(xs, ys, zs, "-o", color=colors[kind], markersize=3.5,
-                    linewidth=2.2, label=f"Molecule {molecule_id} ({kind})" if arm == 0 else None)
+                    linewidth=2.2, label=label)
             ax.scatter(xs[-1], ys[-1], zs[-1], color=colors[kind], marker="s",
                        s=55, depthshade=False)
         ax.scatter(*center, color="black", s=95, depthshade=False)
-        ax.text(*center, f"  {kind}{molecule_id}", color="black", fontsize=11)
+        if not compact:
+            ax.text(*center, f"  {kind}{molecule_id}", color="black", fontsize=11)
     # 候補は点線で描き、確定した結合と誤認しない凡例を付ける。
     if candidates is not None:
         for i, (start, end) in enumerate(candidates):
@@ -140,7 +151,8 @@ def draw_molecules(molecules, occupied_count, output, dpi, show=False, candidate
     detail = "Absolute coordinates, no bonds" if candidates is None else f"{len(candidates)} candidate pairs, no bonds"
     if bonds is not None:
         detail = f"{len(bonds)} bonds, each endpoint used at most once"
-    ax.set_title(f"{len(molecules)} molecules, {occupied_count} occupied sites\n" + detail)
+    prefix = "Incomplete placement: " if incomplete else ""
+    ax.set_title(prefix + f"{len(molecules)} molecules, {occupied_count} occupied sites\n" + detail)
     ax.view_init(elev=24, azim=-55)
     ax.legend(loc="upper left", fontsize=10)
     fig.tight_layout()
@@ -161,6 +173,7 @@ def main():
     parser.add_argument("--show", action="store_true")
     parser.add_argument("--candidates", type=Path, help="③-Aの候補CSV。確定結合ではない")
     parser.add_argument("--bonds", type=Path, help="③-Bの確定結合CSV")
+    parser.add_argument("--incomplete", action="store_true", help="目標未達の軌跡図と明記する")
     args = parser.parse_args()
     if args.bonds and args.candidates:
         parser.error("候補図と結合図は別々に出力してください")
@@ -170,7 +183,7 @@ def main():
         molecules, occupied_count = read_molecules(args.csv)
         candidates = read_candidates(args.candidates, molecules) if args.candidates else None
         bonds = read_bonds(args.bonds, molecules) if args.bonds else None
-        draw_molecules(molecules, occupied_count, args.output, args.dpi, args.show, candidates, bonds)
+        draw_molecules(molecules, occupied_count, args.output, args.dpi, args.show, candidates, bonds, args.incomplete)
     except (ValueError, OSError, ImportError, TypeError, KeyError) as error:
         print(f"Error: {error}", file=sys.stderr)
         return 1

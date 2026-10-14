@@ -31,16 +31,16 @@
 
 ③-Cの`demos/clusters_L8_seed3.cfg`は同じ2分子・2結合をUFで集計する例。
 clustersモードは生成と結合の条件を変更せず、クラスタCSVだけを追加する。
-分子数等の設定化・大規模試料の生成はまだ未対応。
+従来デモの固定条件は維持する。多分子生成は下記networkモードで扱う。
 
 ## 多分子用設定（次の①）
 
 `network/`に専用設定を置く。dim,L,seed,arm_length,a_probabilityは必須。
 目標はtarget_moleculesまたはtarget_phiの片方だけを指定する。
 占有率は切り捨てで整数の分子数へ換算し、入力値と換算後の占有率を区別する。専用読込と値の検査まで実装済み。
-まだ既存デモやrun_demo.pyへ渡して生成する設定ではない。
+既存のsingle/two/clustersデモには渡さない。run_demo.pyのnetworkモードで生成する。
 `make build/check_network_config`後、
 `./build/check_network_config configs/network/preview_N20_L16_seed3.cfg`で確認する。
-詳しくは../docs/network-settings.md。生成への接続は次の②。
+詳しくは../docs/network-settings.md。生成への接続は次の②として実装済み。
 
 占有率指定の例：`network/preview_phi010_L16_seed3.cfg`（phi=0.1→19分子）。

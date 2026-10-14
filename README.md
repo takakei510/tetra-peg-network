@@ -72,4 +72,12 @@ make build/check_network_config
 ./build/check_network_config configs/network/preview_N20_L16_seed3.cfg
 ```
 
-A separate `NetworkConfig` adds arm length, A-type probability, and exactly one of `target_molecules` or `target_phi`. Occupancy input is converted to an integer target molecule count by flooring; requested and resolved occupancy are reported separately. Use `configs/network/preview_phi010_L16_seed3.cfg` for the occupancy-input example. This command only validates the configuration and reports `generation_run=0`. Connecting it to configurable multi-molecule generation is the next step. Existing three-key demo configs and fixed demo conditions remain unchanged. See [network settings](docs/network-settings.md).
+A separate `NetworkConfig` adds arm length, A-type probability, and exactly one of `target_molecules` or `target_phi`. Occupancy input is converted to an integer target molecule count by flooring; requested and resolved occupancy are reported separately. Use `configs/network/preview_phi010_L16_seed3.cfg` for the occupancy-input example. This command only validates the configuration and reports `generation_run=0`. The network mode below connects these settings to multi-molecule generation. Existing three-key demo configs and fixed demo conditions remain unchanged. See [network settings](docs/network-settings.md).
+
+## Configurable multi-molecule network (next step 2)
+
+```sh
+python scripts/run_demo.py --mode network --config configs/network/preview_phi010_L16_seed3.cfg
+```
+
+This generates the resolved target count with random A/B types, then reuses the endpoint search, bonding and union-find modules and saves a Python figure. The example resolves to 19 molecules. `placement-summary.csv` separates requested/resolved occupancy from actual placement, counts occupied-center and trapped rejections, and records completion. The default attempt budget is 10000 total trials; override with `--max-placement-attempts N` (network mode only). Budget exhaustion saves completed trajectories with `status=incomplete` and exit code 3, skips bonding/UF, and plots partial trajectories only when nonempty. See [multi-molecule generation](docs/multi-molecule-network.md).

@@ -1,7 +1,7 @@
 CC ?= cc
 CFLAGS ?= -O2 -std=c11 -Wall -Wextra -Wpedantic -Werror
 CPPFLAGS ?= -Iinclude
-CORE = src/config.c src/rng.c src/lattice.c src/union_find.c src/molecule.c src/endpoint_search.c src/bond.c src/cluster.c
+CORE = src/config.c src/rng.c src/lattice.c src/union_find.c src/molecule.c src/endpoint_search.c src/bond.c src/cluster.c src/network_config.c
 .PHONY: all test clean
 all: build/tetra-peg-network
 build:
@@ -28,7 +28,12 @@ build/demo_clusters: src/demo_clusters.c $(CORE) | build
 	$(CC) $(CPPFLAGS) $(CFLAGS) $^ -o $@
 build/test_cluster: tests/test_cluster.c $(CORE) | build
 	$(CC) $(CPPFLAGS) $(CFLAGS) $^ -o $@
-test: build/test_cluster build/test_bond build/test_foundation build/test_molecule build/test_endpoint_search
+build/check_network_config: src/check_network_config.c $(CORE) | build
+	$(CC) $(CPPFLAGS) $(CFLAGS) $^ -o $@
+build/test_network_config: tests/test_network_config.c $(CORE) | build
+	$(CC) $(CPPFLAGS) $(CFLAGS) $^ -o $@
+test: build/test_network_config build/test_cluster build/test_bond build/test_foundation build/test_molecule build/test_endpoint_search
+	./build/test_network_config
 	./build/test_cluster
 	./build/test_bond
 	./build/test_foundation

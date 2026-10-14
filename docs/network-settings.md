@@ -1,0 +1,84 @@
+# 次の①：多分子用設定の読込と検証
+
+## 今回の範囲
+
+多分子生成に向け、分子数・腕長・A型確率をファイルから読めるようにした。
+今回は設定の読込と入力検査まで。生成関数・候補探索・結合・UFへの接続は次の②。
+既存のsingle/two/candidates/bonds/clustersデモは以前の固定条件を維持する。
+
+## 2つの設定形式
+
+| 形式 | 読み込み関数 | キー |
+|---|---|---|
+| 既存デモ用 | config_load | dim, L, seed |
+| 多分子用 | network_config_load | 上記3項目＋target_molecules, arm_length, a_probability |
+
+`NetworkConfig`構造体に既存の`Config base`を含め、3つの生成条件を追加した。
+6項目はすべて必須。暗黙の既定値は入れず、未知・重複・欠落キーはエラー。
+従来のkey=value、#コメント、前後空白の書式を引き継ぐ。
+古いデモへ新形式を渡すとエラーになる。追加設定を無視して固定条件で生成させない。
+
+| キー | Cの参照先・型 | 意味・条件 |
+|---|---|---|
+| dim | config.base.dim : int | 現段階は3のみ |
+| L | config.base.L : int | 1辺の格子点数。2以上、既存格子の点数上限内 |
+| seed | config.base.seed : uint64_t | 乱数seed。0〜UINT64_MAX |
+| target_molecules | config.target_molecules : size_t | 完成させたい分子数。正の整数、既存実装の範囲内 |
+| arm_length | config.arm_length : size_t | 各腕の歩数。中心を除き1以上 |
+| a_probability | config.a_probability : double | A型を選ぶ入力確率r。有限な0〜1、B型は1-r |
+
+A型の確率と実際のA型比率は別。r=0.5でもAとBの数を半数ずつ固定しない。
+型の抽選位置は現在の分子生成関数と同じく空中心確認後を予定する。
+今回は型の抽選は実行しない。
+
+## 検査すること
+
+整数は符号・小数・後続文字を含む場合に拒否。浮動小数はNaN/無限値や範囲外を拒否。
+格子L^3、軌跡配列、1分子の仮占有リスト、探索回数の計算が既存の上限を超えないか検査。
+4腕なので1分子の必要占有点数は `1+4*arm_length`。
+`target_molecules*(1+4*arm_length) <= L^3` を満たさない設定は事前に拒否する。
+乗算前に除算で上限を比較し、計算のオーバーフローを避ける。
+
+この条件は必要条件で、配置成功・生成時間・メモリ確保成功を保証しない。
+分子の形状や込み合いによるtrapped・配置試行上限は、次の②で生成時に扱う。
+失敗した読込は呼出元の出力構造体を変更しない。
+
+## 使用例
+
+`configs/network/preview_N20_L16_seed3.cfg`：
+
+```ini
+dim = 3
+L = 16
+seed = 3
+target_molecules = 20
+arm_length = 5
+a_probability = 0.5
+```
+
+```sh
+make build/check_network_config
+./build/check_network_config configs/network/preview_N20_L16_seed3.cfg
+```
+
+正常時は終了コード0、`config_validated=1`と読み込んだ6項目を出力する。
+例の必要占有点数は420点、目標の占有率は420/4096=0.1025390625。
+`generation_run=0`を明記する。`target_phi`は分子数と腕長から計算した目標値で、実績ではない。
+入力エラーは標準エラーに理由を出し、終了コード1。
+
+`configs/network/`は多分子用、`configs/demos/`は従来デモ用、手元の変更は`configs/local/`。
+例は読込確認用で、生成済み試料や統計実験ではない。
+距離、境界、成長規則、最大試行数、多重結合条件は今回の新しい設定キーに含めない。
+未対応のキーを追加するとエラーになる。
+
+## 検証・既存コードとの関係
+
+並び替え・空白・コメント、小数と指数表記、確率0/1、seed0/最大値を検証。
+全必須キーの欠落、重複、未知キー、範囲外、数値の桁溢れ、長過ぎる行、
+物理的に必要点数が収まらない設定、失敗時の出力不変、旧設定の互換性を検証。
+
+直接使ったもの：`Config`型、`ARM_COUNT`、既存格子・軌跡配列の仕様と上限。
+既存Config読込の書式と厳格な入力検査方針を引き継いで、新しい専用読込関数を実装した。
+旧config_loadを呼んで追加項目を無視する方式ではない。既存生成やUFは今回は変更しない。
+次の②でtarget_moleculesを容量と生成目標、arm_lengthをMoleculeStore初期化、
+a_probabilityをmolecule_try_generateの引数に接続する。

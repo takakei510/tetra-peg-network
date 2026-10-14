@@ -64,3 +64,12 @@ python scripts/run_demo.py --mode clusters --config configs/demos/clusters_L8_se
 ```
 
 This keeps the same placement and bonds and adds per-molecule memberships, per-cluster sizes/bond counts, and a network summary. Isolated molecules are included. Multiple bonds between a molecule pair retain their bond count while union-find joins the molecules only once. See [molecular clusters](docs/molecular-clusters.md) for why UF is used, how it differs from bond storage, complexity, and BFS validation. This is a small demonstration, not a gelation measurement.
+
+## Network configuration preparation (next step 1)
+
+```sh
+make build/check_network_config
+./build/check_network_config configs/network/preview_N20_L16_seed3.cfg
+```
+
+A separate six-key `NetworkConfig` adds target molecule count, arm length, and A-type probability. This command only validates the configuration and reports `generation_run=0`. Connecting it to configurable multi-molecule generation is the next step. Existing three-key demo configs and fixed demo conditions remain unchanged. See [network settings](docs/network-settings.md).

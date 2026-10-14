@@ -5,7 +5,7 @@
 - 将来の統計実験用設定は `experiments/` に分ける。現段階のデモと混ぜない。
 - `default.cfg` と `two-molecules.cfg` は既存コマンドとの互換用として残す。
 
-cfgから変更できるのは現在 `dim`、`L`、`seed` の3項目だけ。AB-SAWデモはdim=3を必要とする。
+既存デモのcfgから変更できるのは現在 `dim`、`L`、`seed` の3項目だけ。AB-SAWデモはdim=3を必要とする。
 未知のキー・重複キーはエラーになるので、未対応の設定を書き足さない。
 
 | 条件 | 1分子デモ | 2分子デモ |
@@ -32,3 +32,12 @@ cfgから変更できるのは現在 `dim`、`L`、`seed` の3項目だけ。AB-
 ③-Cの`demos/clusters_L8_seed3.cfg`は同じ2分子・2結合をUFで集計する例。
 clustersモードは生成と結合の条件を変更せず、クラスタCSVだけを追加する。
 分子数等の設定化・大規模試料の生成はまだ未対応。
+
+## 多分子用設定（次の①）
+
+`network/`に専用の6項目設定を置く。dim,L,seedに加えてtarget_molecules,
+arm_length,a_probabilityをすべて明示する。専用読込と値の検査まで実装済み。
+まだ既存デモやrun_demo.pyへ渡して生成する設定ではない。
+`make build/check_network_config`後、
+`./build/check_network_config configs/network/preview_N20_L16_seed3.cfg`で確認する。
+詳しくは../docs/network-settings.md。生成への接続は次の②。

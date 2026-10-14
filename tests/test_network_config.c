@@ -20,6 +20,24 @@ int main(void) {
     assert(!network_config_load("configs/network/preview_N20_L16_seed3.cfg",&c,error,sizeof error));
     assert(c.base.dim==3 && c.base.L==16 && c.base.seed==3);
     assert(c.target_molecules==20 && c.arm_length==5 && c.a_probability==0.5);
+    assert(c.target_mode==TARGET_MOLECULE_COUNT && c.requested_phi==0 && c.phi_site_budget==0);
+    assert(!network_config_load("configs/network/preview_phi010_L16_seed3.cfg",&c,error,sizeof error));
+    assert(c.target_mode==TARGET_OCCUPIED_FRACTION && c.requested_phi==0.1);
+    assert(c.target_molecules==19 && c.phi_site_budget==409);
+    /* 十進入力の切り捨て境界。doubleの誤差で5分子が4分子にならない。 */
+    const char *phi_values[]={"0.105","0.104999999999999999","0.105000000000000001","1.05e-1","1",".105","+0.1050"};
+    const size_t phi_counts[]={5,4,5,5,47,5,5};
+    for(size_t k=0;k<sizeof phi_counts/sizeof *phi_counts;++k) {
+        char text[256];snprintf(text,sizeof text,"dim=3\nL=10\nseed=3\narm_length=5\na_probability=0.5\ntarget_phi=%s\n",phi_values[k]);
+        write_config(text);assert(!network_config_load(path,&c,error,sizeof error));
+        assert(c.target_molecules==phi_counts[k]);
+    }
+    const char *bad_phi[]={"0","-0.1","1.1","1.000000000000000001","nan","inf","0x1p-1","1e999","1e-999","0.0001","0.1junk",".","1e","0.1.2"};
+    for(size_t k=0;k<sizeof bad_phi/sizeof *bad_phi;++k) {
+        char text[256];snprintf(text,sizeof text,"dim=3\nL=10\nseed=3\narm_length=5\na_probability=0.5\ntarget_phi=%s\n",bad_phi[k]);invalid(text);
+    }
+    invalid("dim=3\nL=16\nseed=3\narm_length=5\na_probability=0.5\ntarget_phi=0.1\ntarget_molecules=19\n");
+    invalid("dim=3\nL=16\nseed=3\narm_length=5\na_probability=0.5\ntarget_phi=0.1\ntarget_phi=0.1\n");
     write_config(" # comment\n a_probability = 2.5e-1 # r\narm_length=3\ntarget_molecules=12\nseed=18446744073709551615\nL=16\ndim=3\n");
     assert(!network_config_load(path,&c,error,sizeof error));
     assert(c.base.seed==UINT64_MAX && c.target_molecules==12 && c.arm_length==3 && c.a_probability==0.25);

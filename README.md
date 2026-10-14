@@ -72,4 +72,4 @@ make build/check_network_config
 ./build/check_network_config configs/network/preview_N20_L16_seed3.cfg
 ```
 
-A separate six-key `NetworkConfig` adds target molecule count, arm length, and A-type probability. This command only validates the configuration and reports `generation_run=0`. Connecting it to configurable multi-molecule generation is the next step. Existing three-key demo configs and fixed demo conditions remain unchanged. See [network settings](docs/network-settings.md).
+A separate `NetworkConfig` adds arm length, A-type probability, and exactly one of `target_molecules` or `target_phi`. Occupancy input is converted to an integer target molecule count by flooring; requested and resolved occupancy are reported separately. Use `configs/network/preview_phi010_L16_seed3.cfg` for the occupancy-input example. This command only validates the configuration and reports `generation_run=0`. Connecting it to configurable multi-molecule generation is the next step. Existing three-key demo configs and fixed demo conditions remain unchanged. See [network settings](docs/network-settings.md).

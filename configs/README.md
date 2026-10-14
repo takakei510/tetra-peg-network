@@ -35,9 +35,12 @@ clustersモードは生成と結合の条件を変更せず、クラスタCSVだ
 
 ## 多分子用設定（次の①）
 
-`network/`に専用の6項目設定を置く。dim,L,seedに加えてtarget_molecules,
-arm_length,a_probabilityをすべて明示する。専用読込と値の検査まで実装済み。
+`network/`に専用設定を置く。dim,L,seed,arm_length,a_probabilityは必須。
+目標はtarget_moleculesまたはtarget_phiの片方だけを指定する。
+占有率は切り捨てで整数の分子数へ換算し、入力値と換算後の占有率を区別する。専用読込と値の検査まで実装済み。
 まだ既存デモやrun_demo.pyへ渡して生成する設定ではない。
 `make build/check_network_config`後、
 `./build/check_network_config configs/network/preview_N20_L16_seed3.cfg`で確認する。
 詳しくは../docs/network-settings.md。生成への接続は次の②。
+
+占有率指定の例：`network/preview_phi010_L16_seed3.cfg`（phi=0.1→19分子）。

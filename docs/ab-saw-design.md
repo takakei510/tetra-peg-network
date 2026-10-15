@@ -1,6 +1,8 @@
-# AB-SAW設計案 v0.1
+# AB-SAW設計書 v0.2
 
-状態：設計レビュー用。分子生成・結合の実装はまだ変更しない。
+更新日：2026-10-15。状態：設定からの多分子生成、末端探索・結合、UF集計、CSV保存・Python描画まで実装済み。
+本書は初期設計と現実装の仕様をまとめる。資料の未確定な物理条件と、現在採用している実装条件は区別する。
+CSVの列名・意味・計算式・保存条件は9〜21節を参照。
 
 ## 1. モデル条件と未確定事項
 
@@ -11,6 +13,7 @@ ERATO公開シンポ資料「Tetra-PEG型SAWネットワーク（AB-SAWモデル
 未確定：境界条件、成長時の方向選択（空近傍から選ぶか、6方向から選んで占有なら失敗か）、腕の順序、距離の定義、結合候補のランダム化手順。
 「近傍24点」はマンハッタン距離1～2の格子点数と一致する。一方、ユークリッド距離2以下では32点。したがってユークリッド距離を無断で採用しない。距離規則は要確認。
 失敗時の完全ロールバックは安全な設計として採用するが、資料の再試行記述だけで生成分布の全仕様が確定したとはみなさない。
+現在の採用条件：開境界、空近傍から一様に成長、腕0〜3を順次生成、マンハッタン距離1〜2、末端順シャッフル後に未結合相手を一様抽選。同分子ペアの別腕による複数結合を許可する。これらを資料の未確定事項が全て確定したという意味にはしない。
 
 ## 2. 責務と正本
 
@@ -30,17 +33,18 @@ endpoint ID=4*molecule ID+arm ID。Endpoint配列を重複保存せず、一覧�
 IDはsize_t、未設定はSIZE_MAX。既存ownerはintなので、生成前に分子数がINT_MAX以下か検証する。
 配列サイズの乗算・加算はオーバーフロー検査後に確保する。
 
-## 3. 1分子生成API（提案、実装ではない）
+## 3. 1分子生成API（現在の実装）
 
 ```c
 GenerationStatus molecule_try_generate(
     Lattice *lat, MoleculeStore *store, Rng *rng,
-    const GenerationConfig *cfg, GenerationStats *stats);
+    size_t center, double a_probability);
 ```
 
 1回の呼び出し=中心候補1回の試行。内部で無制限再試行しない。
-状態：SUCCESS / CENTER_OCCUPIED / TRAPPED / INVALID_CONFIG / ALLOCATION_ERROR。
-空中心選択後のA/B抽選タイミング、方向の列挙順序、乱数消費順を仕様化する。
+状態：GEN_SUCCESS / GEN_CENTER_OCCUPIED / GEN_TRAPPED / GEN_INVALID_CONFIG / GEN_ALLOCATION_ERROR。
+中心候補は呼出側で抽選する。多分子ループの試行統計はPlacementStatsで集計する。
+A/Bは空中心確認後に抽選し、方向番号は+x,−x,+y,−y,+z,−zを0〜5で保存する。乱数消費順も再現に影響する。
 試行前に必要な格納領域と1+4l点の作業領域を確保する。
 中心と腕を仮占有し、作業領域に書き込み点を記録する。trappedならその点のみ全解放する。
 成功時のみ分子数を増加し、完成軌跡を登録する。失敗時は格子・登録済み分子を変更しない。乱数状態と試行統計は進む。
@@ -48,13 +52,15 @@ GenerationStatus molecule_try_generate(
 
 ## 4. 複数分子配置と設定
 
-target_moleculesを配置目標の正本とし、phi=N*(1+4l)/L^3を実績として算出する。
-目標phiを入力する機能は後で加え、丸め方法と実際のphiを出力する。
-追加設定案：arm_length、a_probability、target_molecules、boundary、growth_rule、max_placement_attempts、trial_id。
+target_moleculesを配置目標の正本とし、実績占有率は完成数Nを使ってN*(1+4l)/L³で算出する。
+目標分子数target_molecules、または入力占有率target_phiの片方をcfgで指定する。
+target_phi指定ではfloor(target_phi*L³/(1+4l))へ換算し、requested_phi・resolved_phi・actual_phiを区別する。
+現在の共通cfgキーはdim,L,seed,arm_length,a_probability。試行上限はnetworkモードのCLI引数--max-placement-attempts（既定10000）。
+boundary、growth_rule、trial_idはcfgキーとして未実装。追加すると未知キーのエラーになる。
 未確認のモデル規則に暗黙の既定値を与えず、実験用選択と資料再現を区別する。
-max_placement_attempts超過は未完了状態として出力し、目標濃度の試料として解析しない。
+max_placement_attempts到達による目標未達は未完了状態として出力し、目標濃度の試料として解析しない。
 中心占有による棄却と、成長開始後のtrappedを別集計する。
-Aの入力確率rと実現比率N_A/Nを両方記録する。分子数を固定したA/B数の割当とは異なる。
+Aの入力確率rはcfgに、実現数N_A/N_Bは配置CSVに記録する。実現A比率N_A/Nはこれらから算出する（専用CSV列は未出力、N=0では未定義）。分子数を固定したA/B数の割当とは異なる。
 
 ## 5. 軌跡と境界
 
@@ -65,9 +71,9 @@ Aの入力確率rと実現比率N_A/Nを両方記録する。分子数を固定�
 ## 6. 後続の結合・グラフ設計
 
 異種末端の距離条件から候補を生成し、末端を1回だけ使うペアリングを独立モジュールにする。
-候補をシャッフルして順に空末端へ結合する方法は候補案。極大マッチングであり、最大マッチングや全マッチングの一様抽出とは異なる。
+現在の実装は末端ID全体の順をシャッフルし、その時点で未結合の候補相手から一様に1個選ぶ。候補ペア全体をシャッフルする案とは区別する。極大マッチングであり、最大マッチングや全マッチングの一様抽出とは異なる。
 同一分子は単一A/B型のためA-B条件で自己結合は除外される。
-同一分子対の複数結合の可否は明示設定する。許可時は結合次数と異なる隣接分子数を区別する。
+結合APIは同一分子対の複数結合の可否を引数で指定できる。現在のnetwork実行入口は許可に固定し、cfg/CLIで切り替える機能は未実装。結合次数と異なる隣接分子数を区別する。
 Union-Findは全登録分子（孤立分子を含む）に対するクラスタ解析用。直接結合の正本にはしない。
 閉路階数E-V+Cは多重グラフの独立閉路数であり、すべての単純閉路の個数ではない。
 
@@ -78,14 +84,365 @@ Union-Findは全登録分子（孤立分子を含む）に対するクラスタ�
 再現性：同じ設定・seed・実装バージョンで同じ軌跡と状態。成長順や方向列挙順の変更も記録対象。
 複数分子検証：occupied=N*(1+4l)、endpoint_count=4N、N_A+N_B=N。
 結合検証：bonded_endpoints=2E、p=2E/(4N)、各末端高々1結合、異種条件・距離条件を満たす。N=0ではpを未定義として扱う。
-最大クラスタはN_1とS_1=N_1/Nを区別する。
-CSV案：metadata（設定・seed・バージョン）、molecules、paths（molecule,arm,step,site）、placement_summary。結合実装後はcandidates、bonds、network_summaryを追加。
+最大クラスタの分子数N_1と全分子数に対する割合N_1/Nを区別する。資料のS_1=m*N_1/L³とは分母が異なるため、CSVではlargest_fractionと命名する（17節）。
+実装済みCSVはtrajectories、placement-summary、candidates、bonds、cluster-members、cluster-summary、network-summaryの7種類（9節）。設定・seed・バージョン等はconfig.cfg、metadata.log、run.jsonに保存する。
 配置試行の時間O(4l)、ロールバックO(4l)、軌跡メモリO(N*4l)、格子メモリO(L^3)。
 固定距離の候補探索は末端の空間索引でO(endpoint_count*K+candidate_count)を目指す。全末端対O(N^2)は小規模検証専用。
 
 ## 8. 実装の区切り
 
-第1段階：データ格納・1分子試行・失敗復元・軌跡CSV。
-第2段階：複数配置・成功率と実現占有率・3D可視化。
-第3段階：距離規則とペアリング仕様確定後、候補・結合・分子グラフ。
+第1段階（実装済み）：データ格納・1分子試行・失敗復元・軌跡CSV。
+第2段階（実装済み）：複数配置・試行集計と実占有率・3D可視化。成功割合は保存した完成数/試行回数から算出できる。
+第3段階（現在の採用規則で実装済み）：候補・結合・UFによる分子クラスタ集計。資料の未確定条件の確認と統計実験は今後の課題。
 生成成功率は生成アルゴリズム依存の診断量として扱う。臨界指数やゲル化判定はこの段階の成果に含めない。
+
+## 9. 実行フォルダとCSVファイル一覧（実装済み）
+
+この節以降は2026-10-15時点の実装仕様。主な対象は以下のnetworkモードである。
+
+```sh
+python scripts/run_demo.py --mode network --config configs/network/preview_phi010_L16_seed3.cfg
+```
+
+結果は`data/runs/<UTC日時>_network_<識別番号>/`に保存する。各実行は別フォルダにし、過去結果を上書きしない。
+フォルダ名の日時末尾の`Z`はUTC。日本時間はUTCに9時間を加える。
+
+| CSVファイル | 1行の単位 | 役割 | 出力する関数 |
+|---|---|---|---|
+| trajectories.csv | 中心または腕の1点 | 完成分子の軌跡の正本 | molecule_write_csv |
+| placement-summary.csv | 実行全体の1行 | 生成目標・実績・試行・停止理由 | demo_network.c内の保存処理 |
+| candidates.csv | 候補の末端ペア1組 | 距離・異種条件を満たす候補。結合確定ではない | candidate_write_csv |
+| bonds.csv | 成立した結合1本 | 実際に結ばれた末端ペアの正本 | bond_write_csv |
+| cluster-members.csv | 分子1個 | 分子IDから所属クラスタを引く | cluster_members_write_csv |
+| cluster-summary.csv | クラスタ1個 | 各クラスタの分子数・結合数 | cluster_summary_write_csv |
+| network-summary.csv | ネットワーク全体の1行 | 全体の分子数・結合数・クラスタ統計 | network_summary_write_csv |
+
+すべてカンマ区切り、先頭行は列名。整数IDは0始まり。列順は以下のヘッダのとおり。
+比率は0〜1の値（例：0.1は10%）で、百分率ではない。距離・座標は格子間隔を1とした単位。
+CSVには基本的に単位・型の別行を入れず、この設計書に意味を定義する。
+
+### 9.1 実行状態によるファイルの違い
+
+| 状態 | 終了コード | trajectories.csv / placement-summary.csv | 候補・結合・クラスタの5 CSV | 図 |
+|---|---|---|---|---|
+| completed | 0 | 保存 | 保存 | 通常はmolecules.pngを保存 |
+| incomplete（試行上限で目標未達） | 3 | 完成済み分子と未達実績を保存 | 解析を実行せず、作らない | 完成数が1以上なら未達と明記した軌跡図 |
+| failed（設定・確保・入出力・描画等のエラー） | 1 | エラーの段階までに得られたファイルを保持。完全な出力は保証しない | 段階によって有無・完全性が異なる | 段階による |
+
+`--no-plot`指定時は状態にかかわらず図を作らない。0完成の未達では軌跡CSVはヘッダだけとなり、図を作らない。
+候補0組・結合0本でも、正常完了なら対応CSVをヘッダだけで保存し、孤立分子のクラスタ集計を行う。
+「ファイルがない」と「正常に0件だった」は区別する。最初に`run.json`のstatusと成果物一覧を確認する。
+失敗した途中の分子形状は保存しない。完成した分子だけを軌跡に残し、棄却回数を別に保存する。
+
+### 9.2 従来モードとの違い
+
+| run_demo.pyのmode | 主なCSV |
+|---|---|
+| single / two | trajectories.csv |
+| candidates | trajectories.csv、candidates.csv |
+| bonds | 上記＋bonds.csv |
+| clusters | 上記＋cluster-members.csv、cluster-summary.csv、network-summary.csv |
+| network | 上記＋placement-summary.csv。分子数・腕長・A型確率を新形式cfgから読む |
+
+従来デモの未完了は終了コード1であり、networkモードの未達専用コード3とは異なる。
+`make test`のPython統合テストも現在は5回の確認実行を`data/runs/`に残す。これらは`--no-plot`で実行する。
+通常実験とテストの保存先の分離は未実装で、画像の有無だけで実験条件を判定せずconfig.cfgとrun.jsonを確認する。
+
+## 10. 共通のパラメータ・ID・座標
+
+以降、目標分子数を`N_target`、実際に完成した分子数を`N`、腕長を`l`、成立結合数を`E`、クラスタ数を`C`と表す。
+式中のNと、C変数やCSV列名のtarget_moleculesを混同しない。
+
+### 10.1 入力条件をどこに保存するか
+
+| 入力キー・引数 | 意味 | 保存先 |
+|---|---|---|
+| dim | 次元。現在3のみ | config.cfg、metadata.log |
+| L | 各方向の格子点数。全格子点数はL³ | config.cfg、metadata.log |
+| seed | 生成・結合に使う乱数の初期seed | config.cfg、metadata.log |
+| arm_length | 腕1本の歩数l。中心を除く | config.cfg、metadata.log |
+| a_probability | 空中心確認後にA型を選ぶ入力確率r | config.cfg、metadata.log |
+| target_molecules | 目標分子数N_targetを直接指定 | config.cfg、placement-summary.csv |
+| target_phi | 入力する目標占有率。分子数へ換算して使用 | config.cfg、CSVではrequested_phi |
+| --max-placement-attempts | 全分子合計の試行上限。既定10000。cfgのキーではない | run.json、metadata.log、placement-summary.csv |
+
+target_moleculesとtarget_phiは片方のみ指定。共通5キー（dim,L,seed,arm_length,a_probability）は必須。
+各CSVにLやseedを重複させていないため、CSVだけを切り離さず実行フォルダ単位で保存する。
+
+### 10.2 IDの定義とファイル間の対応
+
+| 名前 | 決め方・範囲 | 用途・注意 |
+|---|---|---|
+| molecule / molecule_a / molecule_b | 完成した順に0〜N−1 | 失敗による欠番なし。同じ実行の全CSVで共通 |
+| arm / arm_a / arm_b | 腕0〜3 | trajectories.csvの中心行だけarm=−1 |
+| endpoint_a / endpoint_b | endpoint_id = 4 × molecule_id + arm_id、0〜4N−1 | 分子ID = endpoint_id / 4、腕ID = endpoint_id % 4（整数演算） |
+| site / site_a / site_b | site = (x × L + y) × L + z、0〜L³−1 | 格子点を1次元の番号にしたもの。現在0≤x,y,z<Lで一意 |
+| bond_id | BondStoreの保存順に0〜E−1 | 行番号に対応。物理的な永続IDではない |
+| cluster_id | クラスタ内の最小分子IDが小さい順に0〜C−1 | UF内部のroot番号とは別。孤立分子にも付ける |
+
+siteからの復元は`z=site%L`、`y=(site/L)%L`、`x=site/(L*L)`（整数除算）。
+分子IDからクラスタを引くにはcluster-members.csvを使い、その分子IDでtrajectories.csvの形状を参照する。
+クラスタ単位に軌跡を複製した別ファイルは作らない。結合の詳細はbonds.csvを参照する。
+IDは実行内で共通だが、seedや条件を変えた別実行の同じIDが同じ物理的分子・クラスタを表すとは限らない。
+
+## 11. trajectories.csv：分子の中心と腕の軌跡
+
+```csv
+molecule,type,arm,step,site,x,y,z,direction
+```
+
+| 列名 | 型・範囲 | 意味・値の求め方 |
+|---|---|---|
+| molecule | 非負整数 | 分子ID。成功順に採番 |
+| type | A / B | 分子の型。4本の腕と中心は同じ型 |
+| arm | −1、0〜3 | 中心なら−1、腕の到達点なら腕番号 |
+| step | 0〜l | 中心は0。各腕の到達点は1〜l。step=lが末端 |
+| site | 非負整数 | その点の格子点ID。式は10.2参照 |
+| x | 整数0〜L−1 | 絶対座標のx成分 |
+| y | 整数0〜L−1 | 絶対座標のy成分 |
+| z | 整数0〜L−1 | 絶対座標のz成分 |
+| direction | −1、0〜5 | 直前の点からこの点へ進んだ方向。中心のみ−1 |
+
+方向番号は0=+x、1=−x、2=+y、3=−y、4=+z、5=−z。
+各腕のstep=1の直前は分子中心。step≥2の直前は同じ腕のstep−1。
+中心は1分子につき1行だけ出力する。4腕の共通起点を4重に数えない。
+データ行数は`N*(1+4*l)`、ヘッダを含む行数はこれに1を加える。
+CSVのstepは1始まりの到達番号、Cのpath_sites添字stepは0始まりである点に注意する。
+CSVは絶対座標を保存する。1分子図の「中心相対座標」はPythonで中心座標を差し引いた表示で、CSVそのものの座標ではない。
+
+## 12. placement-summary.csv：生成目標と実績
+
+```csv
+input_mode,requested_phi,target_molecules,resolved_phi,placed_molecules,occupied_sites,actual_phi,type_A,type_B,max_placement_attempts,attempts,center_occupied,trapped,completed,stop_reason
+```
+
+ヘッダの次に実行全体の集計を1行出力する。候補探索・結合・UFより前に保存する。
+
+| 列名 | 型・値 | 意味・計算方法 |
+|---|---|---|
+| input_mode | molecule_count / occupied_fraction | 分子数直接指定か、占有率指定か |
+| requested_phi | 実数、または空欄 | target_phiとして入力した占有率。N直接指定なら未指定なので空欄 |
+| target_molecules | 正整数 | 読込後の生成目標N_target。占有率指定ならfloor(requested_phi*L³/(1+4l)) |
+| resolved_phi | 実数 | N_target*(1+4l)/L³。目標Nが全て完成した場合の占有率 |
+| placed_molecules | 非負整数 | 実際に完成して登録された分子数N |
+| occupied_sites | 非負整数 | 実際の格子ownerを走査して数えた占有点数。通常N*(1+4l)と一致 |
+| actual_phi | 実数 | occupied_sites/L³。実際の占有率。0完成なら0 |
+| type_A | 非負整数 | 完成したA型分子数N_A |
+| type_B | 非負整数 | 完成したB型分子数N_B。N_A+N_B=N |
+| max_placement_attempts | 正整数 | CLIで指定した全分子合計の試行上限。既定10000 |
+| attempts | 非負整数 | 中心候補を選んで1分子生成を試みた総回数。占有中心・trappedも含む |
+| center_occupied | 非負整数 | 選んだ中心候補が既に占有されていた棄却回数 |
+| trapped | 非負整数 | 空中心から成長を始め、4腕が完成する前に行き止まりになった回数 |
+| completed | 0 / 1 | 生成目標を達成したら1。後続の解析・描画の成否までは表さない |
+| stop_reason | target_reached / attempt_limit / generation_error | 生成ループの停止理由。目標達成／試行上限／生成の実行エラー |
+
+`floor`はその数以下の最大の整数。今回の正の値では小数部切り捨てで、目標占有率を超えないN_targetを選ぶ。
+0分子へ換算されるtarget_phiは入力エラー。黙って1分子へ増やさない。
+換算は十進入力の桁演算で扱い、表示用doubleの丸めによる分子数のずれを防ぐ。
+表示ではrequested_phiが`0.10000000000000001`となる場合があるが、入力の十進原文はconfig.cfgに残る。
+requested_phi・resolved_phi・actual_phiは別の値。未達ならactual_phiはresolved_phiより低くなる。
+正常達成・上限未達では`attempts = placed_molecules + center_occupied + trapped`。
+メモリ不足等の実行エラーが起きた場合、最後のエラー試行はこの3分類に含まれないことがある。
+completed=1の後に描画等が失敗してrun.jsonがfailedになる場合もある。実行全体の成否はrun.jsonで確認する。
+A型の入力確率rはconfig.cfgのa_probability。実現A比率はtype_A/placed_moleculesで別途算出し、0完成では未定義。
+
+## 13. candidates.csv：結合候補の末端ペア
+
+```csv
+endpoint_a,molecule_a,arm_a,type_a,site_a,x_a,y_a,z_a,endpoint_b,molecule_b,arm_b,type_b,site_b,x_b,y_b,z_b,manhattan_distance
+```
+
+| 列名 | 意味・計算方法 |
+|---|---|
+| endpoint_a | ペアの先頭側の末端ID |
+| molecule_a | endpoint_a/4（整数除算）で得る所属分子ID |
+| arm_a | endpoint_a%4で得る腕番号 |
+| type_a | molecule_aのA/B型 |
+| site_a | molecule_a・arm_aの最後の軌跡点のsite |
+| x_a | site_aの絶対x座標 |
+| y_a | site_aの絶対y座標 |
+| z_a | site_aの絶対z座標 |
+| endpoint_b | ペアの後側の末端ID |
+| molecule_b | endpoint_b/4（整数除算）で得る所属分子ID |
+| arm_b | endpoint_b%4で得る腕番号 |
+| type_b | molecule_bのA/B型 |
+| site_b | molecule_b・arm_bの最後の軌跡点のsite |
+| x_b | site_bの絶対x座標 |
+| y_b | site_bの絶対y座標 |
+| z_b | site_bの絶対z座標 |
+| manhattan_distance | abs(x_a−x_b)+abs(y_a−y_b)+abs(z_a−z_b)。現在1または2 |
+
+ID・siteは非負整数、座標は0〜L−1の整数、typeは文字A/B、距離は正整数。
+重複除去のためendpoint_a<endpoint_bで保存する。**接尾辞a/bはペアの左右であり、A型/B型という意味ではない。type_aがB、type_bがAの行もある。**
+同一分子のペアは除き、異種型で距離1〜2のペアを全て候補として保存する。
+候補段階では同じ末端が複数行に現れてよい。まだ結合していないため、末端高々1回の制約はbonds.csvに適用する。
+候補ID列は作らない。1行が1組で、候補の並びは抽選順位や結合確率そのものを表さない。
+距離列はCSV出力時に座標から計算する。探索本体は24個の座標差とsite索引を使い、全末端対の距離を計算しない。
+
+## 14. bonds.csv：成立した結合
+
+```csv
+bond_id,endpoint_a,molecule_a,arm_a,type_a,site_a,x_a,y_a,z_a,endpoint_b,molecule_b,arm_b,type_b,site_b,x_b,y_b,z_b,manhattan_distance
+```
+
+| 列名 | 型・意味 |
+|---|---|
+| bond_id | 非負整数。成立結合の保存順に0〜E−1 |
+| endpoint_a | 非負整数。先頭側の末端ID |
+| molecule_a | 非負整数。endpoint_a/4 |
+| arm_a | 整数0〜3。endpoint_a%4 |
+| type_a | 先頭側分子の型A/B |
+| site_a | 先頭側の末端site |
+| x_a | 先頭側末端の絶対x座標 |
+| y_a | 先頭側末端の絶対y座標 |
+| z_a | 先頭側末端の絶対z座標 |
+| endpoint_b | 非負整数。後側の末端ID |
+| molecule_b | 非負整数。endpoint_b/4 |
+| arm_b | 整数0〜3。endpoint_b%4 |
+| type_b | 後側分子の型A/B |
+| site_b | 後側の末端site |
+| x_b | 後側末端の絶対x座標 |
+| y_b | 後側末端の絶対y座標 |
+| z_b | 後側末端の絶対z座標 |
+| manhattan_distance | 正整数。座標から計算したマンハッタン距離。現在1または2 |
+
+bond_id以外の列の定義はcandidates.csvと共通。成立ペアは候補の部分集合で、endpoint_a<endpoint_b。
+同じ末端IDはendpoint_a列とendpoint_b列を合わせて高々1回だけ現れる。
+同じ分子対を別の腕で複数回結んだ場合は別行・別bond_idで保存する。
+候補7組から結合3本、のように件数は一致しない。現在の結合処理は最大結合数を保証するものではない。
+緑の結合線は2末端の接続表示であり、その間に新しい格子点を占有する腕の軌跡を追加したものではない。
+結合前後でoccupied_sitesは変わらない。
+
+## 15. cluster-members.csv：分子からクラスタへの対応
+
+```csv
+molecule,cluster_id,cluster_size,bond_degree
+```
+
+| 列名 | 型・意味・求め方 |
+|---|---|
+| molecule | 非負整数。分子ID。0〜N−1の順に1行ずつ保存 |
+| cluster_id | 非負整数。結合を使ったUFの連結成分に、10.2の規則で付け直した出力ID |
+| cluster_size | 正整数。そのクラスタに属する分子数。格子点数ではない |
+| bond_degree | 整数0〜4。その分子につながる成立結合の本数＝結合済み腕の数 |
+
+データ行数はN。孤立分子はcluster_size=1、bond_degree=0で保存する。
+bond_degreeは異なる隣接分子の数ではない。同じ相手に2腕を結べばbond_degreeは2になる。
+同じcluster_idの分子を集め、trajectories.csvのmolecule列で絞ればクラスタ形状を復元できる。
+
+## 16. cluster-summary.csv：クラスタごとの集計
+
+```csv
+cluster_id,molecule_count,bond_count
+```
+
+| 列名 | 型・意味・求め方 |
+|---|---|
+| cluster_id | 非負整数。cluster-members.csvと共通の出力クラスタID |
+| molecule_count | 正整数。そのクラスタ内の分子数 |
+| bond_count | 非負整数。そのクラスタ内の成立結合の本数。多重結合も1本ずつ数える |
+
+データ行数はC。孤立分子もmolecule_count=1、bond_count=0として1行保存する。
+連結している2分子間に2本の結合があってもmolecule_countは2、bond_countは2である。
+クラスタ内の独立閉路数を後で求めるなら`bond_count−molecule_count+1`（連結多重グラフ）。この値は現在CSVの独立列としては出力しない。
+
+## 17. network-summary.csv：ネットワーク全体の集計
+
+```csv
+molecules,bonds,clusters,largest,second_largest,isolated_molecules,largest_fraction
+```
+
+| 列名 | 型・意味・求め方 |
+|---|---|
+| molecules | 非負整数。集計対象の完成分子数N |
+| bonds | 非負整数。成立結合数E。bonds.csvのデータ行数 |
+| clusters | 非負整数。孤立分子を含むクラスタ数C |
+| largest | 非負整数。最大クラスタに属する分子数N_1 |
+| second_largest | 非負整数。2番目のクラスタの分子数。同じサイズのクラスタが複数あれば同値を許す。1クラスタしかなければ0 |
+| isolated_molecules | 非負整数。bond_degree=0の分子数 |
+| largest_fraction | 実数、または空欄。largest/molecules。0分子の空ネットワークでは未定義なので空欄 |
+
+ヘッダの次に全体の集計を1行保存する。largestとsecond_largestはクラスタIDではなく分子数。
+現在のnetworkモードは0完成の未達時にはUFを実行しないため、このCSV自体を作らない。
+0分子でlargest_fractionを空欄にする規則は、clusterモジュールの汎用出力仕様である。
+先生の資料の`S_1 = m*N_1/L³`と、このCSVの`largest_fraction = N_1/N`は分母が異なるため別の量。
+両者は`m=1+4l`として`資料のS_1 = actual_phi * largest_fraction`で対応する（N>0）。
+
+## 18. ファイル間の整合性と確認例
+
+正常完了時には、同じ実行フォルダ内で以下を確認できる。
+
+| 確認項目 | 成立する関係 |
+|---|---|
+| 完成分子数 | placement-summary.placed_molecules = network-summary.molecules = cluster-membersの行数 |
+| 占有点数 | occupied_sites = N*(1+4l) = trajectoriesのデータ行数（中心を1行で保存） |
+| 型の集計 | type_A + type_B = N |
+| 末端数 | 4N。trajectoriesのstep=lの行数 |
+| 結合の集計 | network-summary.bonds = bondsの行数 = cluster-summary.bond_countの総和 |
+| 結合次数 | cluster-members.bond_degreeの総和 = 2E |
+| 分子の所属 | cluster-summary.molecule_countの総和 = N |
+| クラスタ数 | network-summary.clusters = cluster-summaryの行数 |
+| 最大クラスタ | largest = cluster-summary.molecule_countの最大値 |
+| 孤立分子 | isolated_molecules = bond_degreeが0の分子数 |
+
+ここで「行数」はヘッダを除くデータ行数。同一siteを各腕に重複出力する形式ではないので、軌跡行数と占有点数が一致する。
+ID列の対応でファイルを結合する。行位置だけで別CSV同士を対応させない。
+
+### 18.1 L16・腕長5・r0.5・phi0.1・seed3の実行例
+
+目標N_target=19、1分子21点、入力占有率0.1、換算後占有率0.097412109375。
+上限10000回の実行ではN=19、N_A=11、N_B=8、occupied_sites=399、attempts=23、center_occupied=2、trapped=2。
+候補7組、結合3本、16クラスタ（2分子クラスタ3個＋孤立分子13個）。以下はnetwork-summary.csvの実際の形式。
+
+```csv
+molecules,bonds,clusters,largest,second_largest,isolated_molecules,largest_fraction
+19,3,16,2,2,13,0.10526315789473684
+```
+
+同じ設定で上限を1回にするとN=1、occupied_sites=21、actual_phi=0.005126953125、completed=0、stop_reason=attempt_limit。
+未達時は配置集計と完成軌跡だけを残し、候補・結合・クラスタのCSVは作らない。
+この例は1seedの動作確認であり、ゲル化点や統計的な結論ではない。
+
+## 19. CSV以外の保存ファイルと再現
+
+| ファイル | 内容・用途 |
+|---|---|
+| config.cfg | 実行時の入力cfgの原文コピー。元の設定変更後もこの実行の入力を残す |
+| run.json | mode、status、開始・終了時刻、コマンド、目標、summary、placement、reported_conditions、files、終了コード、Git情報、ファイルのSHA-256など |
+| metadata.log | Cが標準エラーに出す固定条件・生成・探索・結合・クラスタの集計。L、seed、腕長、A確率、境界、成長、距離、結合規則も記録 |
+| molecules.png | CSVからPythonで描画。A/B型と結合を表示。現状はクラスタ別色分け・個別クラスタ抽出の機能はない |
+| source.zip | srcの.c、includeの.h、scriptsの.py、Makefile、可視化requirements.txtの控え。build・data・仮想環境・tests・docsは含めない |
+| build.log | ビルドコマンドの出力とエラー記録 |
+| plot.log | 描画コマンドの出力とエラー記録。描画を実行した場合のみ作成 |
+
+run.jsonのnetworkモードのschema_versionは2。既存モードは1。
+run.jsonのplacementはplacement-summary.csvを読み込んだ値で、数値も文字列として格納される。
+summaryのplaced_molecules、type_counts、occupied_sites、trajectory_rowsは軌跡CSVから集計したJSON数値。
+generation_completedとanalysis_completedはnetworkモードの生成・解析完了の真偽値、plot_generatedは描画完了の真偽値。
+描画だけの失敗でもstatusはfailedになるため、生成・解析の各完了フラグとログを併せて確認する。
+早い段階の失敗では完了フラグがまだ存在しない場合もある。存在しない値を成功や0として補完しない。
+sha256は各成果物、binary_sha256は実行バイナリの指紋。run.json自身の自己ハッシュは含めない。
+source.zipは実行時の作業コピーを記録するので、未コミット変更がある場合もGitコミットIDだけに依存しない。
+再現にはconfig.cfg、試行上限を含む実行コマンド、実装と乱数消費順が必要。
+
+## 20. 占有率換算式の根拠
+
+参考：水高将吾「Tetra-PEG型SAWネットワークのゲル化転移」、ERATO複素ゲルプロジェクト公開シンポジウム、2026年7月22日。提供PDF「ERATO公開シンポ.pdf」の5・6ページ。
+資料では`phi = m*n/L³`、例としてf=4、l=5、m=21点/分子を示す。
+現在のモデルでは`m=1+4l`なので、分子数について解くと`n=phi*L³/(1+4l)`。
+目標占有率を超えない整数分子数にするため、今回の実装で`N_target=floor(phi*L³/(1+4l))`を採用した。
+占有率の定義は資料に基づく。floorによる整数化は実装上の選択であり、資料にその丸め指定が明記されていると主張しない。
+
+## 21. CSV仕様の正本と更新時の照合先
+
+| 仕様 | 照合先 |
+|---|---|
+| 軌跡の列と中心行 | src/molecule.c：molecule_write_csv |
+| 配置実績の列 | src/demo_network.c：placement-summary保存処理 |
+| 候補の列と末端の復元 | src/endpoint_search.c：candidate_write_csv |
+| 結合の列 | src/bond.c：bond_write_csv |
+| クラスタの3 CSV | src/cluster.c：各write_csv関数 |
+| ファイル構成と状態管理 | scripts/run_demo.py |
+
+コードで列名や出力条件を変更した際は、この設計書のヘッダ・表・例も同時に更新する。
+現段階の未出力指標（独立閉路数、クラスタ別色分け等）は、既存CSV列と混ぜず追加機能として扱う。

@@ -1,0 +1,22 @@
+// ブラウザを起動しないUI契約テスト。実GPUの動作確認とは区別する。
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+const base=new URL('../web/viewer/',import.meta.url),html=readFileSync(new URL('index.html',base),'utf8');
+const elements=new Map(),draws=[],errors=[];
+for(const m of html.matchAll(/<([a-z]+)\b([^>]*\bid="([^"]+)"[^>]*)>/g))elements.set(m[3],{textContent:'',value:'',checked:/\bchecked\b/.test(m[2]),hidden:/\bhidden\b/.test(m[2]),disabled:false,options:[{},{}],style:{},classList:{toggle(){}},addEventListener(){},click(){return this.onclick?.();}});
+for(const id of ['scope','color','limit'])elements.get(id).value={scope:'all',color:'type',limit:'5000'}[id];
+const context={clearRect(){},beginPath(){},stroke(){},moveTo(){},lineTo(){},arc(){},fill(){draws.push('center');}};
+const fakeCanvas=()=>({width:800,height:600,style:{},setAttribute(){},getContext:()=>context});
+globalThis.location={search:process.argv.includes('--canvas')?'':'?renderer=webgl'};
+globalThis.document={getElementById:id=>elements.get(id)||null,querySelectorAll:()=>[],createElement:fakeCanvas};
+const gl=new Proxy({NO_ERROR:0,getError:()=>0,isContextLost:()=>false,getShaderParameter:()=>true,getProgramParameter:()=>true,getAttribLocation:()=>1,getUniformLocation:()=>1,createShader:()=>({}),createProgram:()=>({}),createBuffer:()=>({}),drawArrays:(...a)=>draws.push(a)}, {get:(t,k)=>t[k]??(String(k).toUpperCase()===k?1:()=>{})});
+const canvas=elements.get('scene');Object.assign(canvas,{getContext:()=>process.argv.includes('--canvas')?null:gl,clientWidth:800,clientHeight:600,ownerDocument:document,parentNode:{insertBefore(){}}});
+globalThis.devicePixelRatio=1;globalThis.requestAnimationFrame=cb=>setTimeout(cb,0);globalThis.ResizeObserver=class{observe(){}};
+globalThis.fetch=async url=>({ok:true,text:async()=>readFileSync(new URL(url,base),'utf8')});
+globalThis.Worker=class{constructor(){throw Error('Worker blocked in this test');}};
+process.on('uncaughtException',e=>errors.push(e.stack));process.on('unhandledRejection',e=>errors.push(e.stack));
+await import(new URL('app.mjs',base));await new Promise(r=>setTimeout(r,60));
+assert.deepEqual(errors,[]);assert.equal(elements.get('error').textContent,'');
+assert.equal(elements.get('statN').textContent,'20');assert.match(elements.get('fileLabel').textContent,/trajectories/);
+assert.match(elements.get('displayCount').textContent,/描画 20/);assert.match(elements.get('status').textContent,/表示成功/);assert(draws.length>0);assert.equal(elements.get('progressPanel').hidden,true);
+console.log(`UI: sample → direct read → geometry → ${process.argv.includes('--canvas')?'Canvas':'WebGL calls'} → display success: passed`);

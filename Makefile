@@ -53,3 +53,5 @@ clean:
 # ビューアを変更するときのみNode.jsで実行する。C処理の依存は増やさない。
 test-viewer:
 	node tests/test_viewer.mjs
+	node tests/test_viewer_ui.mjs
+	node tests/test_viewer_ui.mjs --canvas

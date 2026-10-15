@@ -48,3 +48,10 @@ const {execFileSync}=await import('node:child_process');
 const converted=JSON.parse(execFileSync('python3',['-c',"import json;from scripts.export_viewer import convert;print(json.dumps(convert('web/viewer/sample/trajectories.csv','web/viewer/sample/bonds.csv')))"],{encoding:'utf8'}));
 assert.deepEqual(parseCompact(converted),model);
 console.log('Python exporter and JavaScript importer agree');
+// 読込み成功後の表示例外を握りつぶさない。
+await new Promise((resolve,reject)=>loadFiles([light],{workerFactory:()=>{throw Error('blocked');},onResult:()=>{throw Error('render callback failed');},onError:e=>{assert.match(e,/表示処理でエラー: render callback failed/);resolve();}}));
+const {cameraMatrix,normalizeGeometry}=await import('../web/viewer/renderer.mjs');
+const projected=normalizeGeometry(geometry(model));assert(projected.positions.every(Number.isFinite));
+for(const [yaw,pitch] of [[.72,-.48],[0,0],[0,Math.PI/2],[Math.PI/2,0]]){const matrix=cameraMatrix({yaw,pitch},800,600);assert(matrix.every(Number.isFinite));assert(projected.positions.length>0);for(let i=0;i<projected.positions.length;i+=3){const a=projected.positions;const x=matrix[0]*a[i]+matrix[4]*a[i+1]+matrix[8]*a[i+2],y=matrix[1]*a[i]+matrix[5]*a[i+1]+matrix[9]*a[i+2];assert(Math.abs(x)<1&&Math.abs(y)<1);}}
+assert(normalizeGeometry(geometry(model,{showA:false,showB:false})).positions.every(Number.isFinite));
+console.log('Display exceptions and finite visible camera projection: passed');

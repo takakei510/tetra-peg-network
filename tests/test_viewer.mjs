@@ -24,3 +24,27 @@ const tied=parseModel(trajectory,bondHeader);assert.deepEqual(tied.largest,[0]);
 assert.throws(()=>parseModel(trajectory,parallel.replace('1,0,1,2,0,2,4','1,0,1,0,0,0,4')),/末端/);
 assert.throws(()=>parseModel(trajectory.replace('0,A,0,1','0,A,0,999999999999'),parallel),/step/);
 console.log('Viewer parser, multibonds, geometry, sampling, ties, invalid data: passed');
+
+// 表示専用形式も全体とクラスタを再計算。保存済みの集計値は信用しない。
+const {compactModel,parseCompact}=await import('../web/viewer/model.mjs');
+const compact=compactModel(model),roundtrip=parseCompact(compact);
+assert.deepEqual(roundtrip,model);
+assert.equal(parseModel(t,b,{detailed:false}).validated,false);
+const corrupt=structuredClone(compact);corrupt.molecules[1][2]=corrupt.molecules[0][2];corrupt.molecules[1][3]=corrupt.molecules[0][3];corrupt.molecules[1][4]=corrupt.molecules[0][4];
+assert.throws(()=>parseCompact(corrupt),/重複/);
+assert.equal(parseCompact(compact,{detailed:false}).validated,false);
+const {readFiles}=await import('../web/viewer/io.mjs');
+const light=new File([JSON.stringify(compact)],'model.ab-saw.json');
+assert.deepEqual(await readFiles([light],{detailed:true}),model);
+const {loadFiles}=await import('../web/viewer/loader.mjs');
+await new Promise((resolve,reject)=>loadFiles([light],{workerFactory:()=>{throw Error('Worker blocked');},onResult:m=>{assert.equal(m.molecules.length,20);resolve();},onError:reject}));
+await new Promise((resolve,reject)=>loadFiles([light],{startupMs:5,workerFactory:()=>({terminate(){}}),onResult:()=>resolve(),onError:reject}));
+await new Promise((resolve,reject)=>loadFiles([{size:3*1024*1024}],{workerFactory:()=>{throw Error('blocked');},onResult:()=>reject(Error('large fallback must be rejected')),onError:e=>{assert.match(e,/2 MiB/);resolve();}}));
+await new Promise((resolve,reject)=>{const cancel=loadFiles([light],{startupMs:5,workerFactory:()=>({terminate(){}}),onResult:()=>reject(Error('cancel failed')),onError:reject});cancel();setTimeout(resolve,15);});
+await new Promise((resolve,reject)=>loadFiles([light],{workerFactory:()=>{const w={terminate(){},postMessage(){queueMicrotask(()=>{w.onmessage({data:{type:'progress',percent:50,message:'test'}});w.onmessage({data:{type:'result',model}});});}};queueMicrotask(()=>w.onmessage({data:{type:'ready'}}));return w;},onResult:m=>{assert.equal(m,model);resolve();},onError:reject}));
+console.log('Compact data, staged loading, Worker handshake/fallback/cancel: passed');
+
+const {execFileSync}=await import('node:child_process');
+const converted=JSON.parse(execFileSync('python3',['-c',"import json;from scripts.export_viewer import convert;print(json.dumps(convert('web/viewer/sample/trajectories.csv','web/viewer/sample/bonds.csv')))"],{encoding:'utf8'}));
+assert.deepEqual(parseCompact(converted),model);
+console.log('Python exporter and JavaScript importer agree');

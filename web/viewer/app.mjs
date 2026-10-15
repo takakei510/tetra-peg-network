@@ -1,10 +1,11 @@
-import {geometry} from './model.mjs';
+import {loadFiles} from './loader.mjs';
+import {geometry,compactModel} from './model.mjs';
 const $=id=>document.getElementById(id), canvas=$('scene');
-let model=null, worker=null, busy=false, timer=null, generation=0;
+let model=null, busy=false, sourceFiles=[], cancelLoad=null;
 const gl=canvas.getContext('webgl',{antialias:true,preserveDrawingBuffer:true});
 function error(message){$('error').textContent=message;$('error').hidden=false;$('status').textContent=message;}
 if(!gl){error('WebGLを利用できません。ブラウザのハードウェアアクセラレーション設定を確認してください。');$('sample').disabled=true;$('files').disabled=true;}
-else start();
+else {try{start();}catch(e){error(`描画初期化に失敗しました: ${e.message}`);}}
 function start(){
   function shader(type,source){const s=gl.createShader(type);gl.shaderSource(s,source);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(s));return s;}
   const program=gl.createProgram();
@@ -23,19 +24,33 @@ function start(){
     const g=lastGeometry,center=g.lo.map((x,i)=>(x+g.hi[i])/2),radius=Math.max(1,Math.hypot(...g.hi.map((x,i)=>(x-g.lo[i])/2)));
     upload(linePosition,normalize(g.positions,center,radius));upload(lineColor,g.colors);upload(pointPosition,normalize(g.centers,center,radius));upload(pointColor,g.centerColors);lines=g.positions.length/3;points=g.centers.length/3;
     $('displayCount').textContent=`描画 ${g.shown.toLocaleString()} / 対象 ${g.totalVisible.toLocaleString()} 分子${g.stride>1?' · 間引き表示':''}`;
+    $('validation').textContent=model.validated?'詳細検証済み':'表示優先・詳細未検証';
+    $('validate').disabled=busy||model.validated;
     $('status').textContent=`腕長 ${model.armLength} · ${model.hasBonds?`${model.clusters.toLocaleString()}成分 · 同率最大 ${model.tied}個（最小分子IDの成分を選択）`:'結合CSVなし：クラスタは未判定'}${g.stride>1?' · 表示は一部の分子と、その両端が表示される結合のみ':''}`;
     draw();
   }
   function attribute(buffer,location){gl.bindBuffer(gl.ARRAY_BUFFER,buffer);gl.enableVertexAttribArray(location);gl.vertexAttribPointer(location,3,gl.FLOAT,false,0,0);}
   function draw(){if(scheduled)return;scheduled=true;requestAnimationFrame(()=>{scheduled=false;const dpr=Math.min(devicePixelRatio||1,2),w=Math.max(1,Math.round(canvas.clientWidth*dpr)),h=Math.max(1,Math.round(canvas.clientHeight*dpr));if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;}gl.viewport(0,0,w,h);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);const cy=Math.cos(yaw),sy=Math.sin(yaw),cp=Math.cos(pitch),sp=Math.sin(pitch),s=.80*zoom,ax=s/Math.max(1,w/h),ay=s*Math.min(1,w/h);gl.uniformMatrix4fv(mat,false,new Float32Array([ax*cy,ay*sp*sy,cp*sy/4,0,0,ay*cp,-sp/4,0,ax*sy,-ay*sp*cy,-cp*cy/4,0,panX,panY,0,1]));gl.uniform1f(size,Math.min(7,3*dpr));attribute(linePosition,pos);attribute(lineColor,col);gl.drawArrays(gl.LINES,0,lines);attribute(pointPosition,pos);attribute(pointColor,col);gl.drawArrays(gl.POINTS,0,points);});}
   function reset(){yaw=.72;pitch=-.48;zoom=1;panX=panY=0;draw();}
-  function load(files){if(!files.length)return;if(worker)worker.terminate();clearTimeout(timer);const version=++generation;busy=true;$('sample').disabled=true;$('error').hidden=true;$('status').textContent='CSVを読み込んで検証中…';worker=new Worker(new URL('./worker.mjs',import.meta.url),{type:'module'});const finish=()=>{clearTimeout(timer);worker?.terminate();worker=null;busy=false;$('sample').disabled=false;};worker.onmessage=({data})=>{if(version!==generation)return;finish();if(data.error){error(data.error);return;}model=data.model;$('statN').textContent=model.molecules.length.toLocaleString();$('statSites').textContent=model.occupied.toLocaleString();$('statBonds').textContent=model.hasBonds?model.bonds.length.toLocaleString():'—';$('statLargest').textContent=model.hasBonds?model.largest.length.toLocaleString():'—';$('scope').options[1].disabled=!model.hasBonds;$('color').options[1].disabled=!model.hasBonds;$('scope').value='all';$('color').value='type';$('bonds').disabled=!model.hasBonds;$('fileLabel').textContent=files.map(f=>f.name).join(' + ');refresh();reset();};worker.onerror=()=>{finish();error('読込み処理に失敗しました。CSVの内容とブラウザの空きメモリを確認してください。');};timer=setTimeout(()=>{finish();error('読込みが60秒を超えたため停止しました。小さい試料を選んでください。');},60000);worker.postMessage({files});}
-  $('files').onchange=e=>load([...e.target.files]);const drop=$('drop');for(const event of ['dragover','dragleave','drop'])drop.addEventListener(event,e=>{e.preventDefault();drop.classList.toggle('drag',event==='dragover');if(event==='drop')load([...e.dataTransfer.files].filter(f=>f.name.endsWith('.csv')));});
+  function load(files,detailed=false){
+    if(!files.length)return;cancelLoad?.();busy=true;$('sample').disabled=true;$('validate').disabled=true;$('error').hidden=true;$('progressPanel').hidden=false;
+    cancelLoad=loadFiles(files,{detailed,onProgress:(percent,message)=>{$('progress').value=percent;$('progressLabel').textContent=`${message} · ${percent}%`;$('status').textContent=message;},onError:message=>{busy=false;$('sample').disabled=false;$('validate').disabled=!model||model.validated;$('progressPanel').hidden=true;error(message);},onResult:data=>{
+      busy=false;$('sample').disabled=false;$('progressPanel').hidden=true;model=data;sourceFiles=files;
+      $('statN').textContent=model.molecules.length.toLocaleString();$('statSites').textContent=model.occupied.toLocaleString();$('statBonds').textContent=model.hasBonds?model.bonds.length.toLocaleString():'—';$('statLargest').textContent=model.hasBonds?model.largest.length.toLocaleString():'—';
+      $('scope').options[1].disabled=!model.hasBonds;$('color').options[1].disabled=!model.hasBonds;
+      if(!detailed){$('scope').value='all';$('color').value='type';}
+      $('bonds').disabled=!model.hasBonds;$('fileLabel').textContent=files.map(f=>f.name).join(' + ');refresh();if(!detailed)reset();
+    }});
+  }
+  $('cancel').onclick=()=>{cancelLoad?.();busy=false;$('sample').disabled=false;$('validate').disabled=!model||model.validated;$('progressPanel').hidden=true;$('status').textContent='読込みを中止しました。';};
+  $('validate').onclick=()=>{if(sourceFiles.length&&!busy)load(sourceFiles,true);};
+  $('export').onclick=()=>{if(!model)return;const blob=new Blob([JSON.stringify(compactModel(model))],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='model.ab-saw.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);};
+  $('files').onchange=e=>load([...e.target.files]);const drop=$('drop');for(const event of ['dragover','dragleave','drop'])drop.addEventListener(event,e=>{e.preventDefault();drop.classList.toggle('drag',event==='dragover');if(event==='drop')load([...e.dataTransfer.files].filter(f=>(/\.(csv|json)$/i).test(f.name)));});
   $('sample').onclick=async()=>{if(busy)return;try{$('sample').disabled=true;const files=await Promise.all(['trajectories.csv','bonds.csv'].map(async name=>{const r=await fetch(`sample/${name}`);if(!r.ok)throw Error('サンプルを読み込めませんでした。');return new File([await r.text()],name,{type:'text/csv'});}));load(files);}catch(e){$('sample').disabled=false;error(e.message);}};
   for(const id of ['scope','color','limit','showA','showB','arms','bonds'])$(id).onchange=refresh;
   let dragging=null;canvas.addEventListener('pointerdown',e=>{dragging={x:e.clientX,y:e.clientY};canvas.setPointerCapture(e.pointerId);canvas.focus();});canvas.addEventListener('pointermove',e=>{if(!dragging)return;const dx=e.clientX-dragging.x,dy=e.clientY-dragging.y;dragging={x:e.clientX,y:e.clientY};if(e.shiftKey){panX+=2*dx/canvas.clientWidth;panY-=2*dy/canvas.clientHeight;}else{yaw+=dx*.008;pitch+=dy*.008;}draw();});for(const name of ['pointerup','pointercancel','lostpointercapture'])canvas.addEventListener(name,()=>{dragging=null;});canvas.addEventListener('wheel',e=>{e.preventDefault();zoom=Math.max(.15,Math.min(20,zoom*Math.exp(-e.deltaY*.001)));draw();},{passive:false});
   canvas.addEventListener('keydown',e=>{const actions={ArrowLeft:()=>yaw-=.1,ArrowRight:()=>yaw+=.1,ArrowUp:()=>pitch-=.1,ArrowDown:()=>pitch+=.1,'+':()=>zoom=Math.min(20,zoom*1.1),'=':()=>zoom=Math.min(20,zoom*1.1),'-':()=>zoom=Math.max(.15,zoom/1.1),r:reset,R:reset};if(actions[e.key]){e.preventDefault();actions[e.key]();draw();}});
   $('reset').onclick=reset;for(const b of document.querySelectorAll('[data-view]'))b.onclick=()=>{const views={iso:[.72,-.48],xy:[0,0],xz:[0,Math.PI/2],yz:[Math.PI/2,0]};[yaw,pitch]=views[b.dataset.view];zoom=1;panX=panY=0;draw();};
-  $('save').onclick=()=>{if(!model)return;const out=document.createElement('canvas');out.width=canvas.width;out.height=canvas.height;const ctx=out.getContext('2d');ctx.fillStyle='#0b1321';ctx.fillRect(0,0,out.width,out.height);ctx.drawImage(canvas,0,0);ctx.fillStyle='#c9d6e4';ctx.font=`${Math.max(12,out.width/90)}px sans-serif`;ctx.fillText(`AB-SAW | ${$('displayCount').textContent}`,18,out.height-18);out.toBlob(blob=>{if(!blob)return;const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='ab-saw-view.png';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);});};
+  $('save').onclick=()=>{if(!model)return;const out=document.createElement('canvas');out.width=canvas.width;out.height=canvas.height;const ctx=out.getContext('2d');ctx.fillStyle='#0b1321';ctx.fillRect(0,0,out.width,out.height);ctx.drawImage(canvas,0,0);ctx.fillStyle='#c9d6e4';ctx.font=`${Math.max(12,out.width/90)}px sans-serif`;ctx.fillText(`AB-SAW | ${$('displayCount').textContent} | ${model.validated?'validated':'unverified'}`,18,out.height-18);out.toBlob(blob=>{if(!blob)return;const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='ab-saw-view.png';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);});};
   canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();error('GPU描画が中断されました。ページを再読込みし、描画分子数を減らしてください。');});new ResizeObserver(draw).observe(canvas);$('sample').click();
 }

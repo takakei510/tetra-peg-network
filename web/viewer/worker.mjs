@@ -1,2 +1,3 @@
-import {parseModel,LIMITS} from './model.mjs';
-self.onmessage=async ({data})=>{try{if(data.files.some(f=>f.size>LIMITS.bytes)||data.files.reduce((n,f)=>n+f.size,0)>LIMITS.bytes)throw Error('CSV合計は32 MiBまでです。大きな試料は最大成分などを抽出してから読み込んでください。');const files=data.files;let t=files.find(f=>/trajectories\.csv$/i.test(f.name));if(!t&&files.length===1)t=files[0];if(!t)throw Error('trajectories.csvを選択してください。');const b=files.find(f=>/^bonds\.csv$/i.test(f.name));self.postMessage({model:parseModel(await t.text(),b?await b.text():null)});}catch(e){self.postMessage({error:e.message});}};
+import {readFiles} from './io.mjs';
+self.postMessage({type:'ready'});
+self.onmessage=async ({data})=>{try{const model=await readFiles(data.files,{detailed:data.detailed,onProgress:(percent,message)=>self.postMessage({type:'progress',percent,message})});self.postMessage({type:'result',model});}catch(e){self.postMessage({type:'error',error:e.message});}};

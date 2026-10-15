@@ -1,8 +1,8 @@
-# AB-SAW設計書 v0.2
+# AB-SAW設計書 v0.3
 
-更新日：2026-10-15。状態：設定からの多分子生成、末端探索・結合、UF集計、CSV保存・Python描画まで実装済み。
+更新日：2026-10-15。状態：設定からの多分子生成、末端探索・結合、UF集計、CSV保存・Python描画まで実装済み。追加として分子グラフと代表最大成分の抽出・描画を実装。
 本書は初期設計と現実装の仕様をまとめる。資料の未確定な物理条件と、現在採用している実装条件は区別する。
-CSVの列名・意味・計算式・保存条件は9〜21節を参照。
+既存7 CSVの列名・意味・計算式・保存条件は9〜21節、派生グラフ出力は23〜24節を参照。
 
 ## 1. モデル条件と未確定事項
 
@@ -410,7 +410,7 @@ molecules,bonds,clusters,largest,second_largest,isolated_molecules,largest_fract
 | config.cfg | 実行時の入力cfgの原文コピー。元の設定変更後もこの実行の入力を残す |
 | run.json | mode、status、開始・終了時刻、コマンド、目標、summary、placement、reported_conditions、files、終了コード、Git情報、ファイルのSHA-256など |
 | metadata.log | Cが標準エラーに出す固定条件・生成・探索・結合・クラスタの集計。L、seed、腕長、A確率、境界、成長、距離、結合規則も記録 |
-| molecules.png | CSVからPythonで描画。A/B型と結合を表示。現状はクラスタ別色分け・個別クラスタ抽出の機能はない |
+| molecules.png | CSVからPythonで描画。A/B型と結合を表示。全体の実空間図。代表最大成分の抽出・描画はgraph/の追加出力を参照 |
 | source.zip | srcの.c、includeの.h、scriptsの.py、Makefile、可視化requirements.txtの控え。build・data・仮想環境・tests・docsは含めない |
 | build.log | ビルドコマンドの出力とエラー記録 |
 | plot.log | 描画コマンドの出力とエラー記録。描画を実行した場合のみ作成 |
@@ -446,3 +446,161 @@ source.zipは実行時の作業コピーを記録するので、未コミット�
 
 コードで列名や出力条件を変更した際は、この設計書のヘッダ・表・例も同時に更新する。
 現段階の未出力指標（独立閉路数、クラスタ別色分け等）は、既存CSV列と混ぜず追加機能として扱う。
+
+## 22. 2026-10-15研究報告後の方針と完成範囲
+
+基本機能（cfg→多分子配置→候補探索→A–B結合→UF→7 CSV・実空間図）は完成済み。
+これは1試料の生成・保存機能の完成であり、ゲル化の実証・モデル条件の確定ではない。
+UFは所属・サイズの集計、BFSは独立したテストの照合に使用する。
+`tests/test_cluster.c`の生成試験は3D、L=8、6分子、腕長5、A/B各3分子、seed=0..49。
+各seedで同分子対の複数結合を許可・禁止の両方についてUFとBFSを比較する。
+2分子デモの集計とは別の試験。BFSの通常解析APIや最短距離解析は未実装。
+
+| 優先順 | 追加する内容 | 完了判断 |
+|---|---|---|
+| 1（今回） | 分子グラフの枝リスト、全体図、最大コンポーネントの抽出と実空間・グラフ図 | 元CSVとID・枝本数・所属が一致、多重結合と孤立分子を保持 |
+| 2 | 測定量の定義確定 | 先生の資料と記号・分母・平均方法を対応づける |
+| 3 | phiを変える複数seed実験 | 平均・誤差・未達率を記録し、未達を目標phiの試料に混ぜない |
+| 4 | Lを変える比較 | 有限サイズ効果を調べ、1試料の最大比だけで転移を断定しない |
+| 5 | 同一分子対の1/2/3/4重結合の頻度 | 単純なペア別結合本数から始める |
+| 6 | 文献の網目分類・サイクル解析 | 必要性と定義を確認して追加 |
+
+周期境界、電気伝導・抵抗、ラプラシアン、一般サイクル列挙、UF/BFSの解析機能拡張は後段。
+当面は先生のメモと資料に沿う単純な測定を優先し、独自指標を先行導入しない。
+
+### 22.1 測定量：定義済みと未確定を分離
+
+N=完成分子数、N1=最大クラスタ分子数、m=1+4l、M=成立した枝の総本数、C=孤立分子を含むクラスタ数。
+Mは既存コード・CSVではEまたはbondsに対応する。文献ごとに同じ記号の意味が異なるので読み替える。
+
+| 測定量 | 定義・方針 | 現在の出力 |
+|---|---|---|
+| 実占有率 phi | m*N/L³。入力目標phiとは区別 | actual_phi |
+| 最大分子数 N1 | 最大クラスタの分子数 | largest |
+| 最大クラスタ比 Pmax | N1/N。N>0 | largest_fraction |
+| 資料のS1 | m*N1/L³ = actual_phi*Pmax。資料PDF5・6ページ | 既存CSVから算出可、専用CSV列は未追加 |
+| 枝本数 M | 成立結合1本につき1、多重結合を保持 | bonds |
+| 末端結合率 p | 2M/(4N)。結合本数ではなく結合済み末端の割合 | 既存CSVから算出可 |
+| 平均クラスタサイズ | 算術平均か重み付き平均か、最大を除くか、同率最大をどう扱うかを確定する | 未追加 |
+| ペア別結合本数 | 各分子ペアに何本の枝があるか。1〜4本の頻度 | bonds.csvから算出可、頻度表は未追加 |
+| M1、m1=M1/M | M1は最小網目の個数という仮理解。三重結合などの数え方と分母を先生に確認 | 未確定・未実装 |
+| 独立閉路数 mu | M-N+C。全単純閉路数とは別 | 追加候補、今回は未追加 |
+
+phiを横軸に最大成分指標・p・Mを描き、L別に比較する。Mは示量量なのでpも併記して系サイズを比較する。
+L³は当面実験条件であり、縦軸の指定と断定しない。各条件でseedを変え、統計誤差と有限サイズ効果を評価する。
+M1を「網目の枝本数の割合」と読み替えない。組合せ数、独立閉路数、局所構造分類を混同しない。
+
+### 22.2 後段の参考文献
+
+以下は測定定義の比較対象。今回の実装の生成規則やM1の定義の根拠と断定しない。
+- Schwenke, Lang, Sommer, “On the Structure of Star-Polymer Networks”, https://arxiv.org/abs/2103.16259 （図1.1・第5節の多重結合構造）。
+- Lang, Schwenke, Sommer, “Short Cyclic Structures in Polymer Model Networks: A Test of Mean Field Approximation by Monte Carlo Simulations”, Macromolecules 45, 4886–4895 (2012), DOI:10.1021/ma300317z。
+- Lang, Müller, “An Analysis of the Gel Point of Polymer Model Networks by Computer Simulations”, Macromolecules 53, 498–512 (2020), DOI:10.1021/acs.macromol.9b02217 （式3のcycle rank）。
+分子の運動・反応規則・濃度定義が現モデルと異なるので、数値的一致を無条件に期待しない。
+
+## 23. 分子グラフと最大コンポーネント（実装済み）
+
+Cの生成・結合・UFと既存7 CSVは変更しない。保存済みCSVをPythonで後処理し、新しい乱数を消費しない。
+分子中心を頂点、成立結合を無向枝とする多重グラフ。候補CSVを成立枝として扱わない。
+N×Nの隣接行列や全サイクル列挙は導入せず、枝リストと分子別の隣接リストを使う。
+追加依存は設けず、標準ライブラリと既存Matplotlibを利用する。
+
+### 23.1 最大成分の選択
+
+cluster-members.csvのUF所属を利用し、結合からの独立した探索でも所属・サイズ・次数を照合する。
+最大サイズが同率の場合はcluster_idが最小の成分を代表として1個抽出する。
+同率最大のcluster_idをすべてgraph-analysis.jsonに保存し、任意の代表選択を隠さない。
+全孤立なら分子0を含む成分を代表とし、結合0本のグラフ・形状図を保存する。
+空試料・未達試料に結合解析を勝手に追加しない。run.jsonの生成状態を確認する。
+IDは元実行と同じ値を保持し、部分抽出後も0始まりに振り直さない。
+
+### 23.2 出力設計
+
+追加成果物は実行フォルダのgraph/配下にまとめ、元のCSVを上書きしない。
+- molecular-edges.csv: bond_id,molecule_a,molecule_b,endpoint_a,endpoint_b,cluster_id。成立結合1本1行。多重結合も各1行。
+- largest-members.csv: molecule,cluster_id,cluster_size,bond_degree。代表最大成分のみ。列の意味は15節と同じ。
+- largest-edges.csv: molecular-edgesと同じ列。代表最大成分の内部枝のみ。
+- graph-analysis.json: 全分子数、枝数、クラスタ数、代表cluster_id、同率最大ID、最大分子数、最大枝数、正規化量、描画配置規則。
+- network.png: 全分子グラフ。A/Bの列にID順で配置し、多重結合は曲線で分離する。座標軸は実空間距離を表さない。
+- largest-network.png: 同じ規則で代表最大成分を描画。
+- largest-molecules.png: 代表最大成分を絶対座標で描画。元軌跡・成立枝の位置を利用する。
+
+グラフ図の位置は決定的な表示用配置であり、SAWの実空間位置・距離・物理的な網目面積を表さない。
+大規模グラフの可読性は保証せず、IDラベルは小規模時だけ付ける。
+--no-plotでは新しいCSV/JSONだけ出力しMatplotlibを要求しない。描画結果の保存有無はJSONで区別する。
+通常network/clusters実行の完了時に後処理を接続し、既存実行への単独コマンドも用意する。
+検証：三重結合、孤立、同率最大、4分子サイクル、破損所属の拒否、既存19分子実行、未達時の非実行。
+
+
+## 24. 派生グラフ出力の仕様と実行方法（実装済み）
+
+入力は同じ実行のtrajectories.csv、bonds.csv、cluster-members.csv、network-summary.csv、run.json。
+read_moleculesはCSVを1回読み、既存の分子ごとの軌跡検査を再利用する。従来の分子ごとの全CSV再読込を除去。
+所属の検証用BFSは通常後処理で1回実行するが、UFの集計実装は置換しない。
+グラフ処理の追加メモリ・探索はO(N+M)、軌跡読込はO(N*l)、ID・stepの整列費用は別。
+可視化のためにN×N隣接行列や全頂点対距離、乱数によるレイアウトを導入しない。
+
+### 24.1 molecular-edges.csv / largest-edges.csv
+
+```csv
+bond_id,molecule_a,molecule_b,endpoint_a,endpoint_b,cluster_id
+```
+
+| 列 | 意味 |
+|---|---|
+| bond_id | 元bonds.csvの成立結合ID。抽出後も採番し直さない |
+| molecule_a | 元の先頭末端の所属分子ID。A型とは限らない |
+| molecule_b | 元の後側末端の所属分子ID。B型とは限らない |
+| endpoint_a | 元の先頭末端ID、4*molecule_a+arm_a |
+| endpoint_b | 元の後側末端ID、4*molecule_b+arm_b |
+| cluster_id | 両分子共通のUF所属ID。異なる所属ならエラー |
+
+すべて非負整数。全体枝リストはM行、最大成分枝リストは代表成分の枝数行。
+元bonds.csvの順序・IDを保持する。多重結合を1枝へ縮約しない。結合0本ならヘッダだけ。
+孤立分子は枝リストに現れないため、頂点一覧の正本であるcluster-members.csvも併用する。
+largest-members.csvの4列は15節と同義で、代表最大成分に所属する分子行だけを保持する。
+
+### 24.2 graph-analysis.json
+
+| キー | 型・意味 |
+|---|---|
+| schema_version | 整数1。この派生JSONの形式バージョン |
+| molecules / bonds / clusters / largest | 整数。全体のN / M / C / 最大分子数N1 |
+| selected_cluster_id | 非負整数。代表最大成分の元ID |
+| tied_largest_cluster_ids | 同率最大成分すべてのIDの昇順配列。1個の場合も配列 |
+| selection_rule | smallest_cluster_id。代表の選択規則 |
+| largest_bonds | 整数。代表最大成分の枝数 |
+| largest_fraction | N1/N（全体分子数を分母にする） |
+| actual_phi | occupied_sites/L³。run.jsonにLがない旧実行ではnull |
+| largest_occupied_fraction | actual_phi*largest_fraction。資料のS1に対応。L不明ならnull |
+| layout | deterministic_type_columns_id_order。A/B二列、各列は元分子ID順 |
+| spatial_coordinates | original_absolute_open_boundary。実空間図は元の絶対座標 |
+| validation | bond_constraints_and_bfs_partition_and_degrees。検証規則の識別子 |
+| plots_generated | 3種類の図をすべて保存できたらtrue。--no-plotはfalse |
+| files | CSV3種類と、正常に全描画完了した場合のPNG3種類の相対ファイル名 |
+| status | completed / failed。後処理の成否。途中失敗時はフォルダの診断用ファイルも確認 |
+
+run.jsonにgraph_analysis_completedとgraph/の各出力・ハッシュを追加する。
+既存run.jsonのschema_versionおよび既存7 CSVの列・物理的生成結果は変更しない。
+後処理失敗時は元CSVを保持し実行全体をfailedにする。生成完了フラグと混同しない。
+単独後処理は元run.jsonを書き換えず、graph-analysis.jsonで成否を記録する。
+未達・0完成・failed実行は単独後処理でも拒否する。
+
+### 24.3 コマンド
+
+```sh
+# 新しい実行：既存図に加えgraph/を自動保存
+python scripts/run_demo.py --mode network --config configs/network/preview_phi010_L16_seed3.cfg
+# 描画なし：既存CSVと派生グラフCSV/JSONを保存。Matplotlib不要
+python scripts/run_demo.py --mode network --config configs/network/preview_phi010_L16_seed3.cfg --no-plot
+# 古いcompleted実行を後処理：実行フォルダを指定
+python scripts/visualization/analyze_graph.py data/runs/<実行フォルダ>
+# 既存graph/がある場合、元を残して別フォルダへ出力
+python scripts/visualization/analyze_graph.py data/runs/<実行フォルダ> --output-dir data/runs/<実行フォルダ>/graph-v2
+```
+
+出力先が既に存在する場合は上書きせずエラーにする。dpiは正整数、既定200。
+CLIの--no-plotと--dpiは単独後処理でも指定可能。
+今回のseed3・L16・19分子では最大2分子の成分が3個あり、代表はcluster_id=2、分子ID=2と5、内部枝1本。
+全体図の線の交差は接続を表さない。頂点として表示された分子だけが接続点。
+この抽出例は転移の証拠ではなく、描画・ID対応・保存の動作確認である。

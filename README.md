@@ -81,3 +81,30 @@ python scripts/run_demo.py --mode network --config configs/network/preview_phi01
 ```
 
 This generates the resolved target count with random A/B types, then reuses the endpoint search, bonding and union-find modules and saves a Python figure. The example resolves to 19 molecules. `placement-summary.csv` separates requested/resolved occupancy from actual placement, counts occupied-center and trapped rejections, and records completion. The default attempt budget is 10000 total trials; override with `--max-placement-attempts N` (network mode only). Budget exhaustion saves completed trajectories with `status=incomplete` and exit code 3, skips bonding/UF, and plots partial trajectories only when nonempty. See [multi-molecule generation](docs/multi-molecule-network.md).
+
+
+### 分子グラフと最大コンポーネント
+
+`--mode network`または`--mode clusters`の正常完了時は、既存の結果に加えて`graph/`へ保存します。
+
+| ファイル | 内容 |
+|---|---|
+| `network.png` | 分子を頂点、成立結合を枝とする全体図。A/B二列の表示用配置 |
+| `largest-network.png` | 代表最大コンポーネントのグラフ図 |
+| `largest-molecules.png` | 代表最大コンポーネントの実空間形状 |
+| `molecular-edges.csv` | 全成立枝。元の結合・分子・末端IDを保持 |
+| `largest-members.csv` / `largest-edges.csv` | 代表最大成分の所属分子と成立枝 |
+| `graph-analysis.json` | 代表選択・同率最大ID・集計・正規化・描画状態 |
+
+同率最大が複数ある場合は最小cluster_idの1成分を代表として抽出し、同率の一覧をJSONに残します。
+多重結合は別の曲線で描画します。線の交差は接続を表しません。グラフ図の距離は物理的距離ではありません。
+目標未達の試料には結合・グラフ解析を実行しません。`--no-plot`でも派生CSV/JSONは保存し、Matplotlibは不要です。
+
+保存済みのcompleted実行も再生成なしで後処理できます。
+
+```bash
+python scripts/visualization/analyze_graph.py data/runs/<実行フォルダ>
+```
+
+既存の`graph/`は上書きしません。再解析には`--output-dir`で別の出力先を指定してください。
+定義・列・処理状態の詳細は[設計書23〜24節](docs/ab-saw-design.md)を参照してください。

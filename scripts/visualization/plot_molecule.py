@@ -35,6 +35,11 @@ def read_molecule(csv_path, molecule_id):
             except (ValueError, TypeError, KeyError) as error:
                 raise ValueError(f"CSVの{line}行目を読み込めません") from error
 
+    return molecule_from_rows(selected, molecule_id)
+
+
+def molecule_from_rows(selected, molecule_id):
+    """読込済みの(type, arm, step, xyz)行を検査する共通処理。"""
     if not selected:
         raise ValueError(f"分子ID {molecule_id} はCSVにありません")
     types = {row[0] for row in selected}

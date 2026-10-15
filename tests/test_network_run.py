@@ -33,6 +33,20 @@ b, _ = run(config)
 for name in ("trajectories.csv", "candidates.csv", "bonds.csv", "cluster-members.csv",
              "cluster-summary.csv", "network-summary.csv", "placement-summary.csv"):
     assert (a / name).read_bytes() == (b / name).read_bytes()
+# 枝リストは1成立結合1行。ID・末端IDを保持し、代表最大成分だけ抽出する。
+assert manifest["graph_analysis_completed"]
+graph_summary = json.loads((a / "graph/graph-analysis.json").read_text())
+assert graph_summary["largest"] == 2 and len(graph_summary["tied_largest_cluster_ids"]) == 3
+assert graph_summary["selected_cluster_id"] == min(graph_summary["tied_largest_cluster_ids"])
+assert not graph_summary["plots_generated"]
+assert len(rows(a / "graph/largest-members.csv")) == 2
+original_bonds = rows(a / "bonds.csv")
+graph_edges = rows(a / "graph/molecular-edges.csv")
+assert len(graph_edges) == len(original_bonds)
+for original, edge in zip(original_bonds, graph_edges):
+    assert all(original[k] == edge[k] for k in ("bond_id", "molecule_a", "molecule_b", "endpoint_a", "endpoint_b"))
+for file in ("molecular-edges.csv", "largest-members.csv", "largest-edges.csv", "graph-analysis.json"):
+    assert (a / "graph" / file).read_bytes() == (b / "graph" / file).read_bytes()
 placement = rows(a / "placement-summary.csv")[0]
 assert int(placement["placed_molecules"]) == 19 and int(placement["occupied_sites"]) == 399
 assert int(placement["attempts"]) == 19 + int(placement["center_occupied"]) + int(placement["trapped"])
@@ -70,6 +84,7 @@ for start in range(19):
 partial, m = run(config, 1)
 assert not m["generation_completed"] and not m["analysis_completed"]
 assert m["summary"]["placed_molecules"] == 1 and m["summary"]["occupied_sites"] == 21
+assert not (partial / "graph").exists()
 assert not (partial / "bonds.csv").exists() and not (partial / "network-summary.csv").exists()
 with tempfile.TemporaryDirectory(dir=ROOT / "build") as folder:
     cfg = Path(folder) / "count.cfg"
@@ -78,6 +93,11 @@ with tempfile.TemporaryDirectory(dir=ROOT / "build") as folder:
     assert m["target_molecules"] == 3 and m["summary"]["type_counts"] == {"A": 3, "B": 0}
     assert not rows(count / "bonds.csv") and not rows(count / "candidates.csv")
     assert len(rows(count / "cluster-summary.csv")) == 3
+    isolated_graph = json.loads((count / "graph/graph-analysis.json").read_text())
+    assert isolated_graph["tied_largest_cluster_ids"] == [0, 1, 2]
+    assert isolated_graph["largest_bonds"] == 0
+    assert rows(count / "graph/largest-members.csv")[0]["molecule"] == "0"
+    assert not rows(count / "graph/largest-edges.csv")
     assert rows(count / "placement-summary.csv")[0]["requested_phi"] == ""
     cfg = Path(folder) / "zero.cfg"
     cfg.write_text("dim=3\nL=2\nseed=3\ntarget_molecules=1\narm_length=1\na_probability=1\n")

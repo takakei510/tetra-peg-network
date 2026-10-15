@@ -12,23 +12,30 @@ import csv
 import sys
 from pathlib import Path
 
-from plot_molecule import read_molecule
+from plot_molecule import molecule_from_rows
 
 
 def read_molecules(csv_path):
     """CSV内の分子IDを列挙し、個々の軌跡と分子間重複を確認する。"""
+    grouped = {}
     with csv_path.open(newline="", encoding="utf-8-sig") as handle:
         reader = csv.DictReader(handle)
-        if "molecule" not in (reader.fieldnames or []):
-            raise ValueError("CSVにmolecule列がありません")
-        ids = sorted({int(row["molecule"]) for row in reader})
-    if not ids or ids[0] < 0:
+        required = {"molecule", "type", "arm", "step", "x", "y", "z"}
+        if not required.issubset(reader.fieldnames or []):
+            raise ValueError("軌跡CSVの列が不足しています")
+        for row in reader:
+            molecule_id = int(row["molecule"])
+            if molecule_id < 0:
+                raise ValueError("負の分子IDは使用できません")
+            grouped.setdefault(molecule_id, []).append((
+                row["type"], int(row["arm"]), int(row["step"]),
+                tuple(int(row[axis]) for axis in "xyz")))
+    if not grouped:
         raise ValueError("CSVに有効な分子がありません")
     molecules = {}
     occupied = set()
-    for molecule_id in ids:
-        center, kind, paths = read_molecule(csv_path, molecule_id)
-        # 中心は4腕の共通起点なので1回だけ数える。
+    for molecule_id in sorted(grouped):
+        center, kind, paths = molecule_from_rows(grouped[molecule_id], molecule_id)
         sites = {center}
         for path in paths.values():
             sites.update(path[1:])

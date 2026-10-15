@@ -45,5 +45,6 @@ test: build/demo_network build/test_placement build/test_network_config build/te
 	./build/test_molecule
 	./build/test_endpoint_search
 	python3 tests/test_network_run.py
+	python3 tests/test_graph_analysis.py
 clean:
 	rm -rf build

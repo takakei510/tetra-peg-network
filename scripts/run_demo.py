@@ -166,6 +166,19 @@ def main():
         manifest["generation_completed"] = not incomplete
         if args.mode == "network":
             manifest["analysis_completed"] = not incomplete
+        manifest["graph_analysis_completed"] = False
+        if args.mode in ("clusters", "network") and not incomplete:
+            # 保存済みの物理結果からの後処理。乱数とCの生成処理は変更しない。
+            save_manifest()
+            sys.path.insert(0, str(ROOT / "scripts" / "visualization"))
+            from analyze_graph import analyze
+            try:
+                analyze(run, run / "graph", no_plot=args.no_plot, allow_running=True)
+                manifest["graph_analysis_completed"] = True
+            finally:
+                if (run / "graph").is_dir():
+                    for path in sorted((run / "graph").iterdir()):
+                        manifest["files"]["graph_" + path.stem.replace("-", "_")] = path.relative_to(run).as_posix()
         manifest["plot_generated"] = False
         if not args.no_plot and manifest["summary"]["placed_molecules"]:
             plot_command = [sys.executable, str(ROOT / "scripts" / "visualization" / plot_name),
@@ -191,7 +204,7 @@ def main():
         exit_code = 3 if incomplete else 0
         if incomplete:
             print(f"試行上限に到達: 目標{manifest['target_molecules']}分子、完成{manifest['summary']['placed_molecules']}分子。完成済み軌跡を保存しました。", file=sys.stderr)
-    except (OSError, ValueError, RuntimeError, csv.Error) as error:
+    except (OSError, ValueError, RuntimeError, ImportError, TypeError, KeyError, csv.Error) as error:
         # 不完全な実行も残し、成功データと識別できるようにする。
         manifest["status"] = "failed"
         manifest["error"] = str(error)

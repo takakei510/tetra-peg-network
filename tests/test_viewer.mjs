@@ -1,0 +1,26 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {parseModel,geometry} from '../web/viewer/model.mjs';
+const path=new URL('../web/viewer/sample/',import.meta.url);
+const t=readFileSync(new URL('trajectories.csv',path),'utf8'), b=readFileSync(new URL('bonds.csv',path),'utf8');
+const model=parseModel(t,b);
+assert.equal(model.molecules.length,20);assert.equal(model.occupied,420);assert.equal(model.armLength,5);assert.equal(model.bonds.length,4);assert.equal(model.clusters,16);assert.deepEqual(model.largest,[1,19]);assert.equal(model.tied,4);
+const all=geometry(model);assert.equal(all.shown,20);assert.equal(all.positions.length,(400+4)*6);
+const sparse=geometry(model,{maxMolecules:3});assert(sparse.shown<=3);assert.equal(sparse.totalVisible,20);
+const largest=geometry(model,{largestOnly:true});assert.equal(largest.shown,model.largest.length);
+assert.equal(geometry(model,{showA:false,showB:false}).shown,0);
+assert.equal(parseModel(t).hasBonds,false);assert.equal(parseModel(t,'bond_id,molecule_a,molecule_b,arm_a,arm_b,endpoint_a,endpoint_b\n').largest.length,1);
+assert.throws(()=>parseModel(t+'\n'+t.split('\n')[1]),/重複/);
+assert.throws(()=>parseModel(t.replace(',A,',',C,')),/分子型/);
+assert.throws(()=>parseModel(t,b+'\n'+b.split('\n')[1]),/重複/);
+assert.throws(()=>parseModel('x,y,z\n1,2,3'),/必要な列/);
+// 二重結合を保持し、連結成分は2分子の1個になる。
+const header='molecule,type,arm,step,x,y,z\n';
+const trajectory=header+'0,A,-1,0,2,2,2\n0,A,0,1,3,2,2\n0,A,1,1,1,2,2\n0,A,2,1,2,3,2\n0,A,3,1,2,2,3\n1,B,-1,0,4,4,2\n1,B,0,1,3,4,2\n1,B,1,1,4,3,2\n1,B,2,1,5,4,2\n1,B,3,1,4,4,3\n';
+const bondHeader='bond_id,molecule_a,molecule_b,arm_a,arm_b,endpoint_a,endpoint_b\n';
+const parallel=bondHeader+'0,0,1,0,1,0,5\n1,0,1,2,0,2,4\n';
+const two=parseModel(trajectory,parallel);assert.equal(two.bonds.length,2);assert.equal(two.clusters,1);assert.deepEqual(two.largest,[0,1]);
+const tied=parseModel(trajectory,bondHeader);assert.deepEqual(tied.largest,[0]);assert.equal(tied.tied,2);
+assert.throws(()=>parseModel(trajectory,parallel.replace('1,0,1,2,0,2,4','1,0,1,0,0,0,4')),/末端/);
+assert.throws(()=>parseModel(trajectory.replace('0,A,0,1','0,A,0,999999999999'),parallel),/step/);
+console.log('Viewer parser, multibonds, geometry, sampling, ties, invalid data: passed');

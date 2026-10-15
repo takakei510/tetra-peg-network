@@ -1,110 +1,173 @@
 # tetra-peg-network
 
-Research code for Tetra-PEG type AB-SAW gelation and molecular network analysis.
+Tetra-PEG型AB-SAWモデルのゲル化と、分子ネットワーク構造を調べる研究用コードです。
+分子配置・末端間のA–B結合・連結成分の集計をCで実行し、CSVをPythonまたはブラウザで可視化します。
 
-## Current status
+## 現在できること
 
-The foundation, a single-molecule demo, and a fixed two-molecule placement demo are implemented: four sequential SAW arms, shared site ownership, full rollback on trapping, trajectory CSV, and Python 3D visualization. Growth currently chooses uniformly among unoccupied nearest neighbors with open boundaries. These are provisional conditions to confirm with the supervisor. Manhattan-radius-2 endpoint candidate search is now implemented (stage 3-A). Endpoint-order random AB bonding is implemented (stage 3-B), with at most one bond per endpoint and optional molecular multibonds. Molecule-level connected-component summaries are implemented with the existing union-find foundation (stage 3-C). General configurable multi-molecule placement and broader graph measurements are not implemented yet.
+- 3次元立方格子上に、4本の自己回避歩行（SAW）の腕を持つ分子を順次生成する。
+- 設定ファイルで系サイズ、腕長、A型確率、目標分子数または目標占有率、seedを指定する。
+- 行き止まりになった分子の配置を完全に戻し、既存分子を保持して再試行する。
+- マンハッタン距離1〜2の末端候補からA–B結合を生成する。1末端1結合とし、同じ分子対の多重結合を許す。
+- Union-Find（UF）で、孤立分子を含むクラスタ所属・サイズ・最大クラスタ比を集計する。
+- 条件、実績、CSV、ログ、ソースの控えを実行ごとのフォルダに保存する。
+- 分子形状・分子グラフ・最大コンポーネントを描画し、枝リストを抽出する。
+- [ブラウザ用3Dビューア](web/viewer/)でCSVを読み込み、モデルを回転・拡大・平行移動する。
 
-For CSV generation and plotting instructions, see [molecule visualization](docs/molecule-visualization.md). The Python script is `scripts/visualization/plot_molecule.py`; Matplotlib is needed only for visualization.
+現在の生成条件は**開境界・空いている最近接点から一様に選択・4本の腕を順番に成長**です。
+これは現時点のモデル仕様であり、平衡SAWの一様サンプリングや、分子の運動・反応ダイナミクスを再現するものとは区別します。
+周期境界、系サイズ・占有率を変えた本格的な統計実験、一般的な網目解析、電気伝導は未実装です。
+測定定義と今後の計画は[設計書](docs/ab-saw-design.md)を参照してください。
 
-For the two-molecule demo (one fixed A and one fixed B), see [two molecules](docs/two-molecules.md). Use `make test build/demo_two_molecules`, then its CSV with `scripts/visualization/plot_molecules.py` to preserve their positions in shared absolute coordinates.
+## 準備と動作確認
 
-## Build and run
+C処理にはC11対応コンパイラとMake、実行管理にはPython 3が必要です。WindowsではWSL上での実行を想定しています。
 
-To keep each demo's configuration, CSV, plot, logs, and source snapshot together without overwriting previous results, use:
-
-```sh
-python scripts/run_demo.py --mode two --config configs/demos/two_L8_seed12345.cfg
-```
-
-Results go to a new `data/runs/` folder per execution. See [run management](docs/run-management.md) and [configuration presets](configs/README.md). Add `--no-plot` for CSV-only runs. This runner uses the existing demo conditions; it does not make hardcoded arm length or molecule counts configurable.
-
-Requires a C11 compiler and Make.
-
-```sh
+```bash
 make
 make test
-./build/tetra-peg-network configs/default.cfg
 ```
 
-The configuration requires `dim` (2 or 3), `L` (at least 2), and an explicit unsigned 64-bit `seed`. Duplicate or unknown keys are rejected. The sample config uses a 3D cubic lattice with **open boundaries**. The command checks initialization and prints the chosen parameters; it does not run a physical simulation.
+PythonでPNGを描画するときだけ、Matplotlibを追加します。
 
-## Modules
-
-- `config`: strict minimal configuration reader.
-- `rng`: explicit SplitMix64 streams, rejection sampling for unbiased bounded integers, deterministic trial seeds. Record the master seed and trial number for repeatability.
-- `lattice`: dense 2D/3D indexing, nearest neighbors, and ownership array (`-1` means empty; nonnegative values are future molecule IDs). Open boundaries only at this stage.
-- `union_find`: connected components over molecule IDs; all allocated IDs initially represent active singleton nodes.
-
-Lattice storage costs O(L^dim) time and memory. Union-find uses O(N) memory and amortized O(alpha(N)) per union/find. For large sweeps, assess memory before selecting `L` and molecule count.
-
-The old `percolation-model` repository was consulted for module boundaries. Its site-occupation, single-walk statistics, and active-site union-find assumptions were deliberately not copied. This code has no dependency on that repository.
-
-## Endpoint candidate search (stage 3-A)
-
-```sh
-python scripts/run_demo.py --mode candidates --config configs/demos/candidates_L8_seed3.cfg
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r scripts/visualization/requirements.txt
 ```
 
-This saves `candidates.csv` alongside trajectories and draws potential pairs as dashed lines. This candidates-only mode does not select bonds. See [endpoint search](docs/endpoint-search.md) for the index design, complexity, validation, and code reuse.
+Matplotlibを使わずCSVと派生グラフCSV/JSONだけ保存する場合は、実行時に`--no-plot`を指定します。
+この場合もPythonによるCSV読込み・整合性検査・グラフ抽出は実行します。
 
-## Random endpoint bonding (stage 3-B)
+## 多分子モデルを生成する
 
-```sh
-python scripts/run_demo.py --mode bonds --config configs/demos/bonds_L8_seed3.cfg
+```bash
+python3 scripts/run_demo.py --mode network --config configs/network/preview_phi010_L16_seed3.cfg
 ```
 
-All endpoint IDs are shuffled, then each free endpoint chooses uniformly from its currently free candidate partners. The demo allows separate arms to connect the same molecule pair more than once. It saves both `candidates.csv` and `bonds.csv` and draws selected bonds as solid green lines. See [endpoint bonding](docs/endpoint-bonding.md) for the rule, data structures, validation, and limitations. Use the clusters mode below for union-find summaries.
+この例は`L=16`、腕長5、目標占有率0.1、A型確率0.5、seed=3です。
+1分子の占有点数は`1 + 4 × arm_length`なので、目標分子数は19に切り下げられます。
 
-## Molecular clusters (stage 3-C)
+設定例：
 
-```sh
-python scripts/run_demo.py --mode clusters --config configs/demos/clusters_L8_seed3.cfg
+```ini
+dim = 3
+L = 16
+seed = 3
+target_phi = 0.1
+arm_length = 5
+a_probability = 0.5
 ```
 
-This keeps the same placement and bonds and adds per-molecule memberships, per-cluster sizes/bond counts, and a network summary. Isolated molecules are included. Multiple bonds between a molecule pair retain their bond count while union-find joins the molecules only once. See [molecular clusters](docs/molecular-clusters.md) for why UF is used, how it differs from bond storage, complexity, and BFS validation. This is a small demonstration, not a gelation measurement.
+`target_phi`と`target_molecules`は**どちらか一方**を指定します。目標占有率、分子数に換算した占有率、実際の占有率は区別して記録します。
+設定の詳細は[ネットワーク設定](docs/network-settings.md)、生成規則は[多分子生成](docs/multi-molecule-network.md)を参照してください。
 
-## Network configuration preparation (next step 1)
+配置試行上限は全分子合計で既定10,000回です。大きな系や高占有率では適切に増やします。
 
-```sh
-make build/check_network_config
-./build/check_network_config configs/network/preview_N20_L16_seed3.cfg
+```bash
+python3 scripts/run_demo.py --mode network \
+  --config configs/network/preview_phi010_L16_seed3.cfg \
+  --max-placement-attempts 100000 --no-plot
 ```
 
-A separate `NetworkConfig` adds arm length, A-type probability, and exactly one of `target_molecules` or `target_phi`. Occupancy input is converted to an integer target molecule count by flooring; requested and resolved occupancy are reported separately. Use `configs/network/preview_phi010_L16_seed3.cfg` for the occupancy-input example. This command only validates the configuration and reports `generation_run=0`. The network mode below connects these settings to multi-molecule generation. Existing three-key demo configs and fixed demo conditions remain unchanged. See [network settings](docs/network-settings.md).
+上限に達した場合は`status=incomplete`、終了コード3とし、完成分子の軌跡と配置集計を残します。
+未達試料では結合・UF・グラフ解析を実行しません。正常完了した目標占有率の試料とは混ぜないでください。
 
-## Configurable multi-molecule network (next step 2)
+## 結果の保存先
 
-```sh
-python scripts/run_demo.py --mode network --config configs/network/preview_phi010_L16_seed3.cfg
-```
-
-This generates the resolved target count with random A/B types, then reuses the endpoint search, bonding and union-find modules and saves a Python figure. The example resolves to 19 molecules. `placement-summary.csv` separates requested/resolved occupancy from actual placement, counts occupied-center and trapped rejections, and records completion. The default attempt budget is 10000 total trials; override with `--max-placement-attempts N` (network mode only). Budget exhaustion saves completed trajectories with `status=incomplete` and exit code 3, skips bonding/UF, and plots partial trajectories only when nonempty. See [multi-molecule generation](docs/multi-molecule-network.md).
-
-
-### 分子グラフと最大コンポーネント
-
-`--mode network`または`--mode clusters`の正常完了時は、既存の結果に加えて`graph/`へ保存します。
+各実行は`data/runs/`の新しいフォルダに保存され、既存の実行結果を上書きしません。
 
 | ファイル | 内容 |
 |---|---|
-| `network.png` | 分子を頂点、成立結合を枝とする全体図。A/B二列の表示用配置 |
+| `config.cfg` / `run.json` / `metadata.log` | 入力条件、実行状態、seed、コード情報など |
+| `trajectories.csv` | 分子中心・各腕の格子点と方向 |
+| `placement-summary.csv` | 目標と実績、型別分子数、配置試行・棄却回数 |
+| `candidates.csv` | 距離条件を満たすA–B末端候補。成立結合とは別 |
+| `bonds.csv` | 実際に成立した末端間結合 |
+| `cluster-members.csv` | 各分子の所属クラスタと次数 |
+| `cluster-summary.csv` | クラスタごとの分子数と結合本数 |
+| `network-summary.csv` | 最大・第2位クラスタ、孤立分子数、最大クラスタ比など |
+| `molecules.png` | 全体の実空間図。描画を有効にした場合のみ |
+| `source.zip` / `build.log` | 再現用ソースの控えとビルドログ |
+
+`network-summary.csv`の`largest_fraction`は**最大クラスタ分子数 / 実生成分子数**です。
+先生の資料の`S1 = (1 + 4l) × 最大クラスタ分子数 / L³`とは正規化が異なります。
+実占有率を`phi`とすると`S1 = phi × largest_fraction`です。
+
+CSVのID対応と全列の意味は[設計書9〜21節](docs/ab-saw-design.md)、保存方針は[実行管理](docs/run-management.md)を参照してください。
+
+## 分子グラフと最大コンポーネント
+
+`network`または`clusters`モードの正常完了時は`graph/`も保存します。
+
+| ファイル | 内容 |
+|---|---|
+| `network.png` | 分子を頂点、成立結合を枝とする全体図 |
 | `largest-network.png` | 代表最大コンポーネントのグラフ図 |
 | `largest-molecules.png` | 代表最大コンポーネントの実空間形状 |
 | `molecular-edges.csv` | 全成立枝。元の結合・分子・末端IDを保持 |
 | `largest-members.csv` / `largest-edges.csv` | 代表最大成分の所属分子と成立枝 |
-| `graph-analysis.json` | 代表選択・同率最大ID・集計・正規化・描画状態 |
+| `graph-analysis.json` | 同率最大ID、代表選択、集計値、描画状態 |
 
-同率最大が複数ある場合は最小cluster_idの1成分を代表として抽出し、同率の一覧をJSONに残します。
-多重結合は別の曲線で描画します。線の交差は接続を表しません。グラフ図の距離は物理的距離ではありません。
-目標未達の試料には結合・グラフ解析を実行しません。`--no-plot`でも派生CSV/JSONは保存し、Matplotlibは不要です。
+同率最大が複数ある場合、最小`cluster_id`の1成分を代表として抽出します。
+多重結合は別々の枝として保持します。グラフ図のA/B二列配置は表示用で、距離は物理的距離ではありません。
+`--no-plot`ではPNGを作成しません。
 
-保存済みのcompleted実行も再生成なしで後処理できます。
+保存済みの正常完了結果も再生成せず解析できます。
 
 ```bash
-python scripts/visualization/analyze_graph.py data/runs/<実行フォルダ>
+python3 scripts/visualization/analyze_graph.py data/runs/<実行フォルダ>
 ```
 
-既存の`graph/`は上書きしません。再解析には`--output-dir`で別の出力先を指定してください。
-定義・列・処理状態の詳細は[設計書23〜24節](docs/ab-saw-design.md)を参照してください。
+既存の`graph/`は上書きしません。別の出力先には`--output-dir`を指定します。
+詳細は[設計書23〜24節](docs/ab-saw-design.md)を参照してください。
+
+## CSVを読み込む3Dビューア
+
+[Web版ビューアを開く](https://ab-saw-model-viewer-kei.equalbox128.chatgpt.site)（所有者のみアクセス可能）。操作と制限は[ビューアの説明](web/viewer/README.md)を参照してください。
+ローカルでも、リポジトリのルートで次を実行できます。
+
+```bash
+python3 -m http.server 8000 --bind 127.0.0.1 --directory web/viewer
+```
+
+ブラウザで`http://localhost:8000`を開き、同じ実行フォルダの`trajectories.csv`と、必要に応じて`bonds.csv`を同時に選択します。
+CSVはブラウザ内で処理します。ドラッグ回転、ズーム、平行移動、A/B表示切替、最大成分の表示、成分別着色、PNG保存に対応します。
+**軌跡だけでも表示できますが、結合・クラスタの判定には`bonds.csv`が必要です。**
+大規模データには読込み上限と分子単位の描画間引きがあります。読込み上限内でも、GPU・ブラウザによって動作速度は異なります。
+
+## 段階別のデモ
+
+従来の固定条件デモも残しています。多分子生成には`network`モードを使用してください。
+
+| モード | 内容 | 設定例 |
+|---|---|---|
+| `single` | 1分子の生成 | `configs/demos/single_L32_seed12345.cfg` |
+| `two` | 固定A/Bの2分子配置 | `configs/demos/two_L8_seed12345.cfg` |
+| `candidates` | 末端候補の探索 | `configs/demos/candidates_L8_seed3.cfg` |
+| `bonds` | 末端間の結合 | `configs/demos/bonds_L8_seed3.cfg` |
+| `clusters` | 分子クラスタ集計 | `configs/demos/clusters_L8_seed3.cfg` |
+
+```bash
+python3 scripts/run_demo.py --mode clusters --config configs/demos/clusters_L8_seed3.cfg
+```
+
+これらの旧デモは腕長や分子数に固定条件を含みます。基盤確認用の`./build/tetra-peg-network configs/default.cfg`は初期化チェックのみで、分子生成は行いません。
+詳細：[1分子](docs/molecule-visualization.md) / [2分子](docs/two-molecules.md) / [末端探索](docs/endpoint-search.md) / [結合](docs/endpoint-bonding.md) / [クラスタ](docs/molecular-clusters.md) / [設定一覧](configs/README.md)
+
+## モジュールと計算資源
+
+| モジュール | 役割 |
+|---|---|
+| `config` / `network_config` | 未知・重複キーなどを検査する設定読込み |
+| `rng` | 明示的なseedを持つSplitMix64と、偏りを避ける整数抽選 |
+| `lattice` | 格子の添字変換・最近接点・占有分子IDの管理 |
+| `molecule` / `placement` | 4腕分子の試行生成、失敗復元、目標数までの反復 |
+| `endpoint_search` / `bond` | 末端の空間索引、候補探索、結合の確定 |
+| `union_find` / `cluster` | 分子レベルの連結成分と集計 |
+
+格子と末端索引は密な配列を用いるため、3次元では`O(L³)`のメモリが必要です。
+固定占有率・腕長では、軌跡点数と保存量も概ね`L³`に比例します。
+Python後処理・描画は別にメモリを使います。PC・サーバの使い分けは、今後の性能測定で判断します。
+
+旧`percolation-model`はモジュール分割の参考にしましたが、本リポジトリはそれに依存しません。

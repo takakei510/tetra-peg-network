@@ -48,3 +48,8 @@ test: build/demo_network build/test_placement build/test_network_config build/te
 	python3 tests/test_graph_analysis.py
 clean:
 	rm -rf build
+
+.PHONY: test-viewer
+# ビューアを変更するときのみNode.jsで実行する。C処理の依存は増やさない。
+test-viewer:
+	node tests/test_viewer.mjs

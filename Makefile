@@ -55,3 +55,7 @@ test-viewer:
 	node tests/test_viewer.mjs
 	node tests/test_viewer_ui.mjs
 	node tests/test_viewer_ui.mjs --canvas
+
+.PHONY: test-benchmark
+test-benchmark:
+	python3 tests/test_benchmark.py

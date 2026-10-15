@@ -171,3 +171,14 @@ python3 scripts/run_demo.py --mode clusters --config configs/demos/clusters_L8_s
 Python後処理・描画は別にメモリを使います。PC・サーバの使い分けは、今後の性能測定で判断します。
 
 旧`percolation-model`はモジュール分割の参考にしましたが、本リポジトリはそれに依存しません。
+
+## Lを変えた計算時間・メモリ・保存容量の測定
+
+```bash
+python3 scripts/benchmark.py --config configs/benchmarks/pc-pilot.json
+```
+
+初期設定はL=16,32,64,128、占有率0.1と0.3、各3seedの24試料です。
+C処理・Python後処理・描画を独立に測り、未達・省略・資源上限での停止を区別します。
+CSVはハッシュ照合済みのgzipで保持し、必要な試料だけ復元できます。
+詳しい条件・表の読み方・PC/サーバの判断・容量の上限は[性能測定ガイド](docs/benchmark.md)を参照してください。

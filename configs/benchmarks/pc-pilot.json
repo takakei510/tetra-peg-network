@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "sizes": [16, 32, 64, 128],
+  "target_phis": ["0.1", "0.3"],
+  "seeds": [3, 17, 42],
+  "repeats": 1,
+  "arm_length": 5,
+  "a_probability": "0.5",
+  "attempts_per_molecule": 100,
+  "min_attempts": 10000,
+  "postprocess": true,
+  "postprocess_max_molecules": 50000,
+  "plot": true,
+  "plot_max_molecules": 1000,
+  "plot_dpi": 120,
+  "stage_timeout_seconds": 60,
+  "max_rss_mib": 4096,
+  "max_case_output_mib": 512,
+  "max_suite_output_mib": 1024,
+  "min_free_disk_mib": 2048,
+  "retention": "gzip",
+  "compression_level": 1
+}

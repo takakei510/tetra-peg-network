@@ -1,0 +1,22 @@
+{
+  "platform": "Linux-6.18.44-x86_64-with-glibc2.39",
+  "machine": "x86_64",
+  "python": "3.12.14",
+  "cpu_count": 9,
+  "available_memory_bytes": 7797944320,
+  "compiler_environment": {
+    "CC": null,
+    "CFLAGS": null,
+    "CPPFLAGS": null
+  },
+  "measurement": "Linux wait4 ru_maxrss, wall perf_counter, sequential processes",
+  "monitor_interval_seconds": 0.02,
+  "warmup_runs": 0,
+  "page_cache": "not cleared",
+  "process_startup_included": true,
+  "cpuinfo": "AMD EPYC 9V74 80-Core Processor",
+  "meminfo": "MemTotal:       10206508 kB\nMemFree:         9153356 kB\nMemAvailable:    9559512 kB\nBuffers:           20112 kB\nCached:           602344 kB\nSwapCached:            0 kB\nActive:            42164 kB\nInactive:         649168 kB\nActive(anon):         60 kB\nInactive(anon):    98728 kB\nActive(file):      42104 kB\nInactive(file):   550440 kB\nUnevictable:       29920 kB\nMlocked:               0 kB\nSwapTotal:             0 kB\nSwapFree:              0 kB\nDirty:              7472 kB\nWriteback:             0 kB\nAnonPages:         99012 kB\nMapped:            71552 kB\nShmem:                12 kB\nKReclaimable:      85424 kB\nSlab:             134192 kB\nSReclaimable:      85424 kB\nSUnreclaim:        48768 kB\nKernelStack:        3224 kB\nPageTables:         3916 kB\nSecPageTables:         0 kB\nNFS_Unstable:          0 kB\nBounce:                0 kB\nWritebackTmp:          0 kB\nCommitLimit:     5103252 kB\nCommitted_AS:     465740 kB\nVmallocTotal:   34359738367 kB\nVmallocUsed:        4456 kB\nVmallocChunk:          0 kB\nPercpu:             2592 kB\nAnonHugePages:         0 kB\nShmemHugePages:        0 kB\nShmemPmdMapped:        0 kB\nFileHugePages:     32768 kB\nFilePmdMapped:         0 kB\nBalloon:               0 kB\nHugePages_Total:       0\nHugePages_Free:        0\nHugePages_Rsvd:        0\nHugePages_Surp:        0\nHugepagesize:       2048 kB\nHugetlb:               0 kB\nDirectMap4k:      112640 kB\nDirectMap2M:     3233792 kB\nDirectMap1G:    17825792 kB\n",
+  "cgroup_memory_max": "8589934592\n",
+  "cgroup_memory_current": "791990272\n",
+  "matplotlib_version": "3.10.8"
+}

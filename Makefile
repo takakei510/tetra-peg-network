@@ -65,3 +65,7 @@ test-benchmark:
 .PHONY: test-analysis
 test-analysis:
 	python3 tests/test_h2_cluster_analysis.py
+
+.PHONY: test-detail
+test-detail:
+	python3 tests/test_phi_detail.py

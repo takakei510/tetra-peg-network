@@ -1,0 +1,91 @@
+{
+  "schema_version": 1,
+  "benchmark": {
+    "schema_version": 1,
+    "seeds": [
+      3,
+      17,
+      42,
+      101,
+      202
+    ],
+    "repeats": 1,
+    "arm_length": 5,
+    "a_probability": "0.5",
+    "attempts_per_molecule": 100,
+    "min_attempts": 10000,
+    "postprocess": false,
+    "postprocess_max_molecules": 50000,
+    "plot": false,
+    "plot_max_molecules": 1000,
+    "plot_dpi": 120,
+    "stage_timeout_seconds": 180,
+    "max_rss_mib": 4096,
+    "max_case_output_mib": 512,
+    "max_suite_output_mib": 3072,
+    "min_free_disk_mib": 2048,
+    "retention": "gzip",
+    "compression_level": 1
+  },
+  "groups": [
+    {
+      "name": "pilot_L64",
+      "sizes": [
+        64
+      ],
+      "target_phis": [
+        "0.42",
+        "0.44",
+        "0.46",
+        "0.48"
+      ]
+    },
+    {
+      "name": "detail_L32",
+      "sizes": [
+        32
+      ],
+      "target_phis": [
+        "0.41",
+        "0.42",
+        "0.43",
+        "0.44",
+        "0.45",
+        "0.46",
+        "0.47",
+        "0.48",
+        "0.49"
+      ]
+    },
+    {
+      "name": "detail_L64_remaining",
+      "sizes": [
+        64
+      ],
+      "target_phis": [
+        "0.41",
+        "0.43",
+        "0.45",
+        "0.47",
+        "0.49"
+      ]
+    },
+    {
+      "name": "detail_L128",
+      "sizes": [
+        128
+      ],
+      "target_phis": [
+        "0.41",
+        "0.42",
+        "0.43",
+        "0.44",
+        "0.45",
+        "0.46",
+        "0.47",
+        "0.48",
+        "0.49"
+      ]
+    }
+  ]
+}

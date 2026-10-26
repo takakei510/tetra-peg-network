@@ -211,3 +211,30 @@ Python標準ライブラリでCSV・JSON・ZIPを作り、Matplotlibがあれば
 ```bash
 make test-analysis
 ```
+
+## 占有率0.4〜0.5の詳細計算
+
+既存のΦ=0.40/0.50を再利用し、新たに0.41〜0.49を0.01刻みで調べます。
+まずL=64、Φ=0.42/0.44/0.46/0.48、各5seedの20試料を実行します。
+今回は保存CSVの再集計に加え、新しい分子ネットワークの生成も行います。
+
+```bash
+python3 scripts/run_phi_detail.py pilot
+```
+
+正常完了すると、H₂・平均クラスタサイズの集計と送付用ZIPまで作成します。
+保存先は`data/refinement/phi040_050/`で、最後の`UPLOAD THIS FILE:`にZIPのパスを表示します。
+20試料の結果を確認した後、全3サイズの詳細計算へ広げます。
+
+```bash
+python3 scripts/run_phi_detail.py full
+```
+
+完了済みのpilot20試料を再利用し、残り115試料を生成します。合計135試料で重複しません。
+途中停止したグループは自動でやり直さず、元の出力を保って停止します。
+[詳細計算の手順・条件・再利用の範囲](docs/phi-detail-study.md)を参照してください。
+
+```bash
+python3 scripts/run_phi_detail.py plan
+make test-detail
+```

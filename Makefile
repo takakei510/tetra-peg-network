@@ -46,6 +46,7 @@ test: build/demo_network build/test_placement build/test_network_config build/te
 	./build/test_endpoint_search
 	python3 tests/test_network_run.py
 	python3 tests/test_graph_analysis.py
+	python3 tests/test_h2_cluster_analysis.py
 clean:
 	rm -rf build
 
@@ -59,3 +60,8 @@ test-viewer:
 .PHONY: test-benchmark
 test-benchmark:
 	python3 tests/test_benchmark.py
+
+
+.PHONY: test-analysis
+test-analysis:
+	python3 tests/test_h2_cluster_analysis.py

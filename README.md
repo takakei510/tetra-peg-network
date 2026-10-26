@@ -182,3 +182,32 @@ python3 scripts/benchmark.py --config configs/benchmarks/pc-pilot.json
 C処理・Python後処理・描画を独立に測り、未達・省略・資源上限での停止を区別します。
 CSVはハッシュ照合済みのgzipで保持し、必要な試料だけ復元できます。
 詳しい条件・表の読み方・PC/サーバの判断・容量の上限は[性能測定ガイド](docs/benchmark.md)を参照してください。
+
+
+## 保存済み試料のH₂・平均クラスタサイズ解析
+
+Gitで更新してから、既存の105試料を後処理できます。実験CSVの再生成やZIPでの解析コード配置は不要です。
+
+```bash
+git pull --ff-only
+python3 scripts/analysis/analyze_h2_clusters.py
+```
+
+`data/`以下で元の105試料を含む保存先が1か所なら自動選択します。見つからない場合や複数ある場合は、保存先を指定します。
+
+```bash
+python3 scripts/analysis/analyze_h2_clusters.py \
+  --suite data/report_figures/20261019T150945Z_9feb1c/simulation
+```
+
+結果はGit管理外の`data/analysis/h2_<UTC日時>_<識別子>/`に保存します。
+最後の`UPLOAD THIS FILE:`に表示する`upload_h2_cluster_results.zip`を送れば、報告用の図へ反映できます。
+Python標準ライブラリでCSV・JSON・ZIPを作り、Matplotlibがあれば図も保存します。図を省略する場合は`--no-plots`を指定します。
+
+今回のH₂は「ちょうど2本で結ばれた分子ペア数」です。三重・四重結合ペアを含む全閉路数とは区別します。
+平均クラスタサイズは、算術平均に加え、最大クラスタ1個を除いた分子数重み付き平均を求めます。
+[実行手順と測定定義](docs/h2-cluster-analysis.md)、[解析条件](configs/analysis/h2-cluster-report.json)を参照してください。
+
+```bash
+make test-analysis
+```

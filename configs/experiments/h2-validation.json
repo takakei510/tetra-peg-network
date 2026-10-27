@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "seed_namespace": "h2-validation-20261027-v1",
+  "sizes": [
+    32,
+    64,
+    128
+  ],
+  "target_phis": [
+    "0.10",
+    "0.20",
+    "0.30",
+    "0.40",
+    "0.41",
+    "0.42",
+    "0.43",
+    "0.44",
+    "0.45",
+    "0.46",
+    "0.47",
+    "0.48",
+    "0.49",
+    "0.50",
+    "0.60",
+    "0.70"
+  ],
+  "benchmark": {
+    "schema_version": 1,
+    "repeats": 1,
+    "arm_length": 5,
+    "a_probability": "0.5",
+    "attempts_per_molecule": 100,
+    "min_attempts": 10000,
+    "postprocess": false,
+    "postprocess_max_molecules": 50000,
+    "plot": false,
+    "plot_max_molecules": 1000,
+    "plot_dpi": 120,
+    "stage_timeout_seconds": 600,
+    "max_rss_mib": 1024,
+    "max_case_output_mib": 512,
+    "max_suite_output_mib": 1536,
+    "min_free_disk_mib": 2048,
+    "retention": "gzip",
+    "compression_level": 1
+  }
+}

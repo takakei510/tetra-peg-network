@@ -1,5 +1,7 @@
 # Φ=0.10〜0.70、全域0.01刻みの追加設定
 
+**保存容量対策の更新：[h2-storage.md](h2-storage.md)を優先。標準はcompact、新しい保存先でcapacityの18試料から確認する。**
+
 目的・定義・解析方法は[h2-validation.md](h2-validation.md)と同じ。
 旧設定の「0.40〜0.50だけ0.01刻み」を、全域0.01刻みへ拡張する。
 
@@ -14,7 +16,7 @@ cd ~/tetra-peg-network
 git pull --ff-only
 python3 scripts/run_h2_validation.py run \
   --config configs/experiments/h2-validation-fine.json \
-  --output data/validation/h2_relation_fine \
+  --output data/validation/h2_relation_fine_compact \
   --samples 100 --workers 4
 ```
 

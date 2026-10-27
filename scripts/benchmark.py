@@ -181,7 +181,7 @@ def skipped(reason):
     return {'status': 'skipped', 'stop_reason': reason}
 
 
-def _execute_case(config, suite, case_id, L, phi, seed, repeat):
+def _execute_case(config, suite, case_id, L, phi, seed, repeat, storage_policy="full"):
     run = suite / 'runs' / case_id
     run.mkdir(parents=True, exist_ok=False)
     cfg = run / 'config.cfg'
@@ -189,7 +189,7 @@ def _execute_case(config, suite, case_id, L, phi, seed, repeat):
                    f'arm_length={config["arm_length"]}\na_probability={config["a_probability"]}\n')
     result = {'case_id': case_id, 'L': L, 'target_phi': str(phi), 'seed': seed, 'repeat': repeat,
               'directory': str(run.relative_to(suite)), 'status': 'running', 'stages': {},
-              'generation_status': 'not_started', 'csv_files': []}
+              'generation_status': 'not_started', 'csv_files': [], 'storage_policy': storage_policy}
     atomic_json(run / 'performance.json', result)
     checked = subprocess.run([str(ROOT / 'build/check_network_config'), str(cfg)],
                              capture_output=True, text=True, check=False)
@@ -209,10 +209,11 @@ def _execute_case(config, suite, case_id, L, phi, seed, repeat):
     else:
         attempts = max(config['min_attempts'], config['attempts_per_molecule'] * n)
         result['max_placement_attempts'] = attempts
-        command = [str(ROOT / 'build/demo_network'), str(cfg)] + [str(run / name) for name in
+        command = [str(ROOT / 'build/demo_network'), str(cfg)] + [str(Path(os.devnull) if storage_policy == 'compact' and name == 'candidates.csv' else run / name) for name in
                    ('candidates.csv', 'bonds.csv', 'cluster-members.csv', 'cluster-summary.csv',
                     'network-summary.csv', 'placement-summary.csv')] + [str(attempts)]
-        stage = measure(command, run / 'trajectories.csv', run / 'metadata.log', config, suite, run)
+        trajectory = Path(os.devnull) if storage_policy == 'compact' else run / 'trajectories.csv'
+        stage = measure(command, trajectory, run / 'metadata.log', config, suite, run)
         result['stages']['c'] = stage
         if stage.get('stop_reason'):
             result['stop_reason'] = stage['stop_reason']
@@ -303,10 +304,12 @@ def finalize_size(path, result, directory):
     atomic_json(path, result)
 
 
-def run_case(config, suite, case_id, L, phi, seed, repeat):
+def run_case(config, suite, case_id, L, phi, seed, repeat, storage_policy="full"):
     run = suite / 'runs' / case_id
     try:
-        return _execute_case(config, suite, case_id, L, phi, seed, repeat)
+        if storage_policy not in ("full", "compact"):
+            raise ValueError("Unknown storage_policy")
+        return _execute_case(config, suite, case_id, L, phi, seed, repeat, storage_policy)
     except (Exception, KeyboardInterrupt) as error:
         path = run / 'performance.json'
         result = json.loads(path.read_text()) if path.exists() else {
@@ -430,3 +433,4 @@ def main():
 
 if __name__ == '__main__':
     sys.exit(main())
+

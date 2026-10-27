@@ -55,7 +55,7 @@ class RelationTests(unittest.TestCase):
             self.assertEqual(first.stat().st_mtime_ns,before)
             self.assertEqual(len(list((out/'cases').glob('*/result.json'))),6)
             result=app.read(first)
-            cluster=first.parent/'clusters.csv';cluster.write_text(cluster.read_text()+'bad\n')
+            cluster=first.parent/'clusters.csv.gz';cluster.write_bytes(cluster.read_bytes()+b'bad')
             failed=subprocess.run(command+['--samples','3'],capture_output=True,text=True)
             self.assertNotEqual(failed.returncode,0)
             self.assertIn('hash mismatch',failed.stderr)

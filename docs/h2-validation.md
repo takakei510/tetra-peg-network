@@ -1,5 +1,7 @@
 # H₂とクラスタサイズの検証：2026-10-27の整理・実行手順
 
+**保存容量対策の更新：[h2-storage.md](h2-storage.md)を優先。標準はcompact、新しい保存先でcapacityの18試料から確認する。**
+
 ## 問いと仮説
 
 問い：同じL・実占有率の条件で、小さいクラスタほどH₂に関わる末端割合が高いか。
@@ -32,7 +34,7 @@
 - H₂：無向分子ペアの結合数が「ちょうど2」。H₃/H₄内の閉路は今回含まない。
 - 全体の末端率p=E/(2N)、H₂全末端割合H₂/N、結合済み末端割合2H₂/E。比は試料ごとに計算する。
 - 生のKとK/L³を保存・作図。Sfinも従来定義で再測定する。N/Kは既存解析の付随値として保存するが新規主図にはしない。
-- 原CSVは復号ハッシュ検証済みgzipで保持。後日4・6分子サイクルを解析するため結合CSVを削除しない。
+- 保持対象の原CSVは復号ハッシュ検証済みgzipで保持。後日4・6分子サイクルを解析するため結合CSVを削除しない。
 
 ## PCで実行（WSL）
 
@@ -60,7 +62,7 @@ python3 scripts/run_h2_validation.py run --samples 500 --workers 2 --max-storage
 seedは固定namespace・L・Φ・試料番号のSHA256先頭64bit。増分・並列順に依存せず、同一計画内の衝突も検査する。
 旧240試料とは混合しない。新実験の対照として旧結果を別に比較できる。
 
-標準保存先data/validation/h2_relation。新設定は--config、別保存先は--output。
+標準保存先data/validation/h2_relation_compact。新設定は--config、別保存先は--output。
 試料数・worker数・保存予算だけを増やして再開できる。モデル設定やコード/バイナリが変わったら別保存先が必要。
 workersはCPU数と検出空きメモリから制限。各C処理最大600秒/RSS1024MiB、1試料512MiBの出力監視。
 並列単位は条件×seed。プロセスごとにCSV解析も行う。ビルドは親プロセスで1回行う。
@@ -82,15 +84,15 @@ python3 scripts/run_h2_validation.py analyze --samples 100
 
 ## 出力と検証判断
 
-- cases/<条件・番号>/runs/：全原データ、performance.json、試行回数・C時間/RSS。
-- cases/<条件・番号>/clusters.csv：1クラスタ1行。size, bonds, h2, h2/s, 2h2/e, p。
+- cases/<条件・番号>/runs/：結合・所属・各summary・performance.json。compactでは軌跡と全候補は省略。
+- cases/<条件・番号>/clusters.csv.gz：1クラスタ1行。size, bonds, h2, h2/s, 2h2/e, p。
 - result.json：試料統計・サイズ区間集計・入力と出力のSHA256・条件。
-- results_*/cluster_samples.csv：条件/seed付きの全クラスタ（元データの再調査用）。
+- 全試料連結cluster_samples.csvは作成しない。正本は試料別clusters.csv.gz。
 - samples.csv / summary.csv：1試料/1条件。全体H₂、K、Pmax、S1、Sfin、SD・SE・有効数。
 - size_relation.csv：同じL・Φのサイズ区間別の平均・SD・SE、寄与seed数とクラスタ数。
 - convergence.csv：先頭5/10/20/50/100/200/500/1000/最終nで平均・SD・SEを再計算。
 - manifest.json：requested/completed、partial/completed、定義、コードとバイナリ情報。
-- upload_h2_validation.zip：結果CSV・図・manifest。全原CSVはPCに残す。
+- upload_h2_validation.zip：結果CSV・図・manifest。結合などの保持対象原CSVはPCに残す。compactでは軌跡・候補は保存しない。
 
 Matplotlibがある場合のみ図を作成。なければCSV/ZIPは完成し、その旨をmanifestに記録する。
 新規図は測定点＋SEのみ。補間・fit・接続線なし。n=1はSEを描けない。

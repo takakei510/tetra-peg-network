@@ -41,7 +41,7 @@ def plot(args):
         if not count:bins=[b for b in bins if b[0]>1]
         labels=[str(lo) if lo==hi else f'{lo:,}〜{hi:,}' for lo,hi in bins]
         n=len(phis)
-        fig=plt.figure(figsize=(12,3.0*n+.8))
+        fig=plt.figure(figsize=(12,3.0*n+1.4))
         gs=fig.add_gridspec(n*2,1,height_ratios=[1,.13]*n,hspace=.25)
         axes=[];maxcount=max(int(r['clusters'])/int(r['total_samples']) for k,r in data.items() if k[0] in phis and k[1]=='all')
         for j,p in enumerate(phis):
@@ -84,14 +84,14 @@ def plot(args):
         else:
             note='色付き点：平均 ± SE（寄与試料数50以上）。白抜き点：50未満。—：該当クラスタなし。\n試料内でクラスタを等重み平均し、次に寄与試料を等重み平均。$H_2$=0も含む。1分子は常に0のため省略。'
         note+='\n横軸は区間を等間隔に配置したカテゴリ軸。代表3条件の記述であり、全φの傾向・因果はこの図だけでは判断しない。'
-        fig.text(.14,.015,note,fontsize=9,color='#45576a')
-        fig.subplots_adjust(left=.14,right=.98,top=.88,bottom=.22)
-        for ext in ['png','svg']:fig.savefig(out/f'{kind}.{ext}',dpi=200)
+        fig.text(.14,.025,note,fontsize=9,color='#45576a',va='bottom')
+        fig.subplots_adjust(left=.14,right=.98,top=.88,bottom=.26)
+        for ext in ['png','svg']:fig.savefig(out/f'{kind}.{ext}',dpi=200,bbox_inches='tight',pad_inches=.2)
         plt.close(fig)
     print(f'出力先: {out.resolve()}')
 
 if __name__=='__main__':
     p=argparse.ArgumentParser()
     p.add_argument('--input',default='size_relation.csv');p.add_argument('--output',default='figures')
-    p.add_argument('--L',type=int,default=128);p.add_argument('--phi',nargs='+',type=float,default=[.40,.47,.55]);p.add_argument('--font')
+    p.add_argument('--L',type=int,default=128);p.add_argument('--phi',nargs='+',type=float,default=[.41,.43,.60]);p.add_argument('--font')
     plot(p.parse_args())

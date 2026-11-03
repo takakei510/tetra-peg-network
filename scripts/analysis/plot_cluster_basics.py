@@ -204,7 +204,14 @@ def draw(summary, groups, output, config, font_path):
         for ext in config['formats']:
             if ext not in ('png', 'svg'):
                 raise ValueError(f'未対応の出力形式: {ext}')
-            fig.savefig(output/f'{name}.{ext}', dpi=config['dpi'], bbox_inches='tight', pad_inches=.2)
+            destination = output/f'{name}.{ext}'
+            temporary = output/f'.{name}.tmp.{ext}'
+            fig.savefig(temporary, dpi=config['dpi'], bbox_inches='tight', pad_inches=.2)
+            if ext == 'png':
+                from PIL import Image
+                with Image.open(temporary) as image:
+                    image.verify()
+            temporary.replace(destination)
         plt.close(fig)
         fig_names.append(name)
 
@@ -380,10 +387,15 @@ def main():
                 'note': 'No simulation or H2 calculation; no independent reconstruction from raw bonds.'}
     (output/'run_metadata.json').write_text(json.dumps(metadata, ensure_ascii=False, indent=2)+'\n', encoding='utf-8')
     archive = output/'cluster_basics_share.zip'
-    with ZipFile(archive, 'w', ZIP_DEFLATED) as zip_file:
+    temporary_archive = output/'.cluster_basics_share.tmp.zip'
+    with ZipFile(temporary_archive, 'w', ZIP_DEFLATED) as zip_file:
         for item in sorted(output.iterdir()):
-            if item.is_file() and item != archive:
+            if item.is_file() and item not in (archive, temporary_archive):
                 zip_file.write(item, item.name)
+    with ZipFile(temporary_archive) as zip_file:
+        if zip_file.testzip() is not None:
+            raise ValueError('共有ZIPの検証に失敗しました')
+    temporary_archive.replace(archive)
     print(f'入力: {input_path}')
     print(f'{metadata["conditions"]}条件・{metadata["samples"]:,}試料を再集計しました')
     print(f'図と説明: {output}')

@@ -1,3 +1,13 @@
+# 基本クラスタ量とH₂解析のColabノート
+
+## 基本クラスタ量（H₂を使わない）
+
+[基本クラスタ量をColabで開く](https://colab.research.google.com/github/takakei510/tetra-peg-network/blob/main/notebooks/Cluster_basics_colab.ipynb)
+
+「ランタイム → すべてのセルを実行」で、PC版と同じ7種類の図を作ります。入力は今回の183条件・各100試料の `samples.csv` です。初回は入力がDriveにない場合だけ、PCの結果フォルダからこのCSVをアップロードしてください。以降はDriveの `tetra-peg-network/cluster_basics/input/samples.csv` を再利用します。`summary.csv` や `size_relation.csv` は入力にできません。
+
+出力はDriveの `tetra-peg-network/cluster_basics/figures_<日時>` です。PNG/SVG各7枚、集計CSV、定義・目的・説明例を記した `figure_guide.md`、入力とコードのSHA256を記した `run_metadata.json` が保存されます。最後のボタンで `cluster_basics_share.zip` をダウンロードし、ChatGPTに添付できます。コードと設定をコミットに固定し、入力は試料ごとの比を計算してから等重みで平均します。シミュレーションは実行しません。
+
 # H₂ report notebook
 
 [Open in Colab](https://colab.research.google.com/github/takakei510/tetra-peg-network/blob/main/notebooks/H2_report_colab.ipynb)

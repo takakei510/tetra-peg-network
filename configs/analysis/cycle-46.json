@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "study": "data/validation/h2_relation_fine_compact",
+  "L": 128,
+  "target_phi": 0.43,
+  "samples": 100,
+  "lengths": [4, 6],
+  "display_min_samples": 50,
+  "scope": "exclude_one_largest"
+}

@@ -34,3 +34,13 @@
 横軸はサイズ区間を等間隔に並べたカテゴリ軸です。クラスタ数は区間幅で割っていません。H₂割合は試料内でクラスタを等重み平均し、その区間のある試料間で等重み平均しています。
 
 GitHub上のノートブックは古い図と新しいコードの混同を避けるため、今回の更新時に保存済み出力を消しています。実行すると図が再表示されます。
+
+## C₄・C₆の占有率・格子サイズ比較
+
+[Colabで開く](https://colab.research.google.com/github/takakei510/tetra-peg-network/blob/codex/ab-saw-cycle46-colab/notebooks/Cycle46_all_occupancies_colab.ipynb)
+
+初期設定の `MODE = "smoke"` で実試料1件を確認できます。`plan` は対象件数、`pilot` は各条件1試料、`full` は各条件100試料を集計します。全範囲は3サイズ×61占有率×100試料です。
+
+ノートブックはGitHubから解析コードを読み、Driveから保存済みの試料表と結合・クラスタ所属データを取得します。出力先の既定値はDriveの `tetra-peg-network/cycle46_report/all_occupancies` です。原データのパスが異なる場合は、設定セルで `STUDY`、`ARCHIVE`、`SAMPLES` を変更してください。
+
+ローカルではリポジトリ直下で `python scripts/analysis/compare_cycles_46.py --help` を確認できます。`--phis all` は全3サイズの全占有率を選び、`--plan` は結合ファイルを開かず試料表から件数を表示します。

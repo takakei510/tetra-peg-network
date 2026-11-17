@@ -6,6 +6,31 @@
 #include "cluster.h"
 #include <inttypes.h>
 
+static int report_spanning(const Lattice *lat, const MoleculeStore *molecules,
+                           const ClusterStore *clusters, int L) {
+    unsigned char *face_masks=calloc(clusters->cluster_count,sizeof *face_masks);
+    if(!face_masks) return -1;
+    unsigned spanning_axes=0;
+    for(size_t m=0;m<molecules->count;++m) {
+        int coord[3];
+        if(lattice_coord(lat,molecules->molecules[m].center_site,coord)) {
+            free(face_masks);
+            return -1;
+        }
+        unsigned char *mask=&face_masks[clusters->molecule_cluster[m]];
+        for(int axis=0;axis<3;++axis) {
+            unsigned faces=3u<<(2*axis);
+            if(coord[axis]==0) *mask|=1u<<(2*axis);
+            if(coord[axis]==L-1) *mask|=2u<<(2*axis);
+            if((*mask&faces)==faces) spanning_axes|=1u<<axis;
+        }
+    }
+    free(face_masks);
+    fprintf(stderr,"spans_x=%u spans_y=%u spans_z=%u\n",
+            spanning_axes&1u,(spanning_axes>>1)&1u,(spanning_axes>>2)&1u);
+    return 0;
+}
+
 int main(int argc, char **argv) {
     if (argc != 9) {
         fprintf(stderr, "usage: %s config candidates.csv bonds.csv cluster-members.csv cluster-summary.csv network-summary.csv placement-summary.csv max_attempts\n", argv[0]);
@@ -87,7 +112,7 @@ int main(int argc, char **argv) {
     }
     if(!fatal && placement_result==0 && !search_error) {
         /* 生成に続く同じ乱数系列で末端順と相手を抽選。多重結合は許可。 */
-        bond_error=bond_select(&candidates,index.endpoint_count,&rng,1,&bonds);
+        bond_error=bond_select(&candidates,index.endpoint_count,&rng,config.allow_multiple_bonds,&bonds);
         if(!bond_error) {
             FILE *fp=fopen(argv[3],"w");
             if(!fp) bond_error=1;
@@ -96,10 +121,10 @@ int main(int argc, char **argv) {
                 if(fclose(fp)) bond_error=1;
             }
         }
-        fprintf(stderr,"pairing=endpoint_shuffle_uniform_partner allow_multiple_bonds=1 "
+        fprintf(stderr,"pairing=endpoint_shuffle_uniform_partner allow_multiple_bonds=%d "
             "bond_rng=continued_generation bonds=%zu bonded_endpoints=%zu "
             "bond_fraction=%.9g bonding_completed=%d\n",
-            bonds.count,2*bonds.count,2.0*bonds.count/index.endpoint_count,!bond_error);
+            config.allow_multiple_bonds,bonds.count,2*bonds.count,2.0*bonds.count/index.endpoint_count,!bond_error);
     }
     ClusterStore clusters={0}; int cluster_error=0;
     if(!fatal && placement_result==0 && !search_error && !bond_error) {
@@ -116,6 +141,7 @@ int main(int argc, char **argv) {
                 if(cluster_error) break;
             }
         }
+        if(!cluster_error) cluster_error=report_spanning(&lat,&store,&clusters,config.base.L);
         fprintf(stderr,"cluster_method=union_find cluster_id_rule=min_member_order "
             "clusters=%zu largest=%zu second_largest=%zu isolated_molecules=%zu "
             "largest_fraction=%.9g clustering_completed=%d\n",

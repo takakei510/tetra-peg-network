@@ -29,6 +29,7 @@
 | target_phi | config.requested_phi : double | 入力する目標占有率。十進数で0より大きく1以下 |
 | arm_length | config.arm_length : size_t | 各腕の歩数。中心を除き1以上 |
 | a_probability | config.a_probability : double | A型を選ぶ入力確率r。有限な0〜1、B型は1-r |
+| allow_multiple_bonds | config.allow_multiple_bonds : int | 省略時は1。0で同じ分子ペアにつき1本まで。 |
 
 A型の確率と実際のA型比率は別。r=0.5でもAとBの数を半数ずつ固定しない。
 型の抽選位置は現在の分子生成関数と同じく空中心確認後を予定する。

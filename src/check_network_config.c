@@ -10,8 +10,8 @@ int main(int argc, char **argv) {
     size_t required=c.target_molecules*(1+4*c.arm_length); /* 検査済みなので安全。 */
     printf("config_validated=1 dim=%d L=%d seed=%" PRIu64 " target_molecules=%zu "
         "arm_length=%zu a_probability=%.17g required_sites=%zu resolved_phi=%.17g "
-        "generation_run=0",c.base.dim,c.base.L,c.base.seed,c.target_molecules,
-        c.arm_length,c.a_probability,required,(double)required/sites);
+        "allow_multiple_bonds=%d generation_run=0",c.base.dim,c.base.L,c.base.seed,c.target_molecules,
+        c.arm_length,c.a_probability,required,(double)required/sites,c.allow_multiple_bonds);
     if(c.target_mode==TARGET_OCCUPIED_FRACTION)
         printf(" input_mode=occupied_fraction requested_phi=%.17g rounding=floor phi_site_budget=%zu\n",
             c.requested_phi,c.phi_site_budget);

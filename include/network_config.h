@@ -11,6 +11,7 @@ typedef struct {
     double requested_phi;       /* 占有率指定の入力値。分子数指定なら0（未指定）。 */
     size_t phi_site_budget;     /* 入力占有率×L^3の切り捨て。実績占有点数ではない。 */
     double a_probability;   /* 空中心を選んだ後のA型抽選確率。B型は1-r。 */
+    int allow_multiple_bonds;
 } NetworkConfig;
 /* dim,L,seed,arm_length,a_probabilityと、target_molecules/target_phiの片方が必須。未知・重複キーは拒否し、失敗時outは変更しない。 */
 int network_config_load(const char *path, NetworkConfig *out, char *error, size_t error_size);

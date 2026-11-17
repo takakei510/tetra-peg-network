@@ -83,6 +83,8 @@ int network_config_validate(const NetworkConfig *c, char *error, size_t size) {
     if(!c->arm_length) return fail(error,size,0,"arm_length must be >= 1");
     if(!isfinite(c->a_probability) || c->a_probability<0 || c->a_probability>1)
         return fail(error,size,0,"a_probability must be finite and in [0,1]");
+    if(c->allow_multiple_bonds!=0 && c->allow_multiple_bonds!=1)
+        return fail(error,size,0,"allow_multiple_bonds must be 0 or 1");
     /* lattice_initと同じ格子点数上限。ここではowner配列を確保しない。 */
     size_t sites=1;
     for(int d=0;d<3;++d) {
@@ -116,8 +118,8 @@ int network_config_load(const char *path, NetworkConfig *out, char *error, size_
     if(!path || !out) return fail(error,size,0,"null argument");
     FILE *fp=fopen(path,"r");
     if(!fp) return fail(error,size,0,"cannot open config");
-    const char *keys[]={"dim","L","seed","target_molecules","arm_length","a_probability","target_phi"};
-    NetworkConfig config={0}; unsigned seen=0; char buffer[512]; int line=0,result=0;char phi_text[512]={0};
+    const char *keys[]={"dim","L","seed","target_molecules","arm_length","a_probability","target_phi","allow_multiple_bonds"};
+    NetworkConfig config={.allow_multiple_bonds=1}; unsigned seen=0; char buffer[512]; int line=0,result=0;char phi_text[512]={0};
     while(fgets(buffer,sizeof buffer,fp)) {
         ++line;
         if(!strchr(buffer,'\n') && !feof(fp)) {result=fail(error,size,line,"line too long");break;}
@@ -126,11 +128,17 @@ int network_config_load(const char *path, NetworkConfig *out, char *error, size_
         char *s=trim(buffer);if(!*s) continue;
         char *eq=strchr(s,'=');if(!eq) {result=fail(error,size,line,"expected key=value");break;}
         *eq=0;char *key=trim(s),*value=trim(eq+1);size_t k;
-        for(k=0;k<7;++k) if(!strcmp(key,keys[k])) break;
-        if(k==7) {result=fail(error,size,line,"unknown key");break;}
+        size_t key_count=sizeof keys/sizeof keys[0];
+        for(k=0;k<key_count;++k) if(!strcmp(key,keys[k])) break;
+        if(k==key_count) {result=fail(error,size,line,"unknown key");break;}
         unsigned bit=1u<<k;
         if(seen&bit) {result=fail(error,size,line,"duplicate key");break;}seen|=bit;
-        if(k==6) {
+        if(k==7) {
+            if(strcmp(value,"0") && strcmp(value,"1")) {
+                result=fail(error,size,line,"allow_multiple_bonds must be 0 or 1");break;
+            }
+            config.allow_multiple_bonds=value[0]-'0';
+        } else if(k==6) {
             if(strlen(value)>=sizeof phi_text) {result=fail(error,size,line,"target_phi too long");break;}
             strcpy(phi_text,value);
         } else if(k==5) {

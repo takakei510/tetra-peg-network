@@ -66,6 +66,16 @@ def worker(root_text, cfg, case, identity, storage_policy="compact"):
     folder = suite/'runs'/case['case_id']
     acfg = dict(arm_length=cfg['arm_length'], a_probability=cfg['a_probability'])
     sample, histogram, source = analyze_case(folder, {k:v for k,v in case.items() if k!='index'}, acfg)
+    multiple = cfg.get('allow_multiple_bonds', True)
+    multiplicities = source['validation_Hk']
+    if not multiple and any(multiplicities[key] for key in ('H2', 'H3', 'H4')):
+        raise ValueError(f"{case['case_id']}: unexpected multiple bond")
+    metadata = dict(token.split('=', 1) for token in (folder/'metadata.log').read_text().split()
+                    if '=' in token)
+    if metadata['allow_multiple_bonds'] != str(int(multiple)):
+        raise ValueError(f"{case['case_id']}: bond setting differs from run metadata")
+    sample.update(allow_multiple_bonds=int(multiple), H3=multiplicities['H3'], H4=multiplicities['H4'],
+                  **{key:int(metadata[key]) for key in ('spans_x', 'spans_y', 'spans_z')})
     clusters = inspect(folder, sample)
     # Direct gzip: no uncompressed duplicate. Per-worker output allocation is reserved by parent.
     cluster_path=suite/'clusters.csv.gz'
@@ -82,6 +92,7 @@ def worker(root_text, cfg, case, identity, storage_policy="compact"):
     member = locate(folder, 'cluster-members.csv')
     hashes[str(member.relative_to(suite))] = digest(member)
     hashes['clusters.csv.gz'] = digest(cluster_path)
+    hashes[str((folder/'metadata.log').relative_to(suite))] = digest(folder/'metadata.log')
     sample['retained_bytes_before_manifest'] = directory_bytes(suite)
     atomic_json(destination, dict(identity=identity, case=case, sample=sample, bins=bins, hashes=hashes))
     return str(destination)
@@ -119,7 +130,8 @@ def export(root, cases, requested, identity, plots, maximum=20*1024**3, min_free
             bins.setdefault(bk, []).append(b)
     summary = []
     metrics = ['H2','H2_per_volume','H2_endpoint_fraction_all','H2_endpoint_fraction_bonded',
-               'clusters','K_per_volume','Pmax','S1','p','cluster_weighted_excl_one','wall_seconds']
+               'clusters','K_per_volume','Pmax','S1','p','cluster_weighted_excl_one',
+               'H3','H4','spans_x','spans_y','spans_z','wall_seconds']
     for (L, phi), group in sorted(grouped.items()):
         row = dict(L=L, target_phi=phi, actual_phi=group[0]['sample']['actual_phi'], n_samples=len(group))
         for metric in metrics:
@@ -214,6 +226,8 @@ def run(args):
         path=Path(tmp)/'cfg.json';path.write_text(json.dumps(cfg)); benchmark.load_config(path)
     if cfg['repeats']!=1 or cfg['plot'] or cfg['postprocess'] or cfg['retention']!='gzip':
         raise ValueError('Require repeats=1, plot/postprocess=false, retention=gzip')
+    if args.disallow_multiple_bonds:
+        cfg['allow_multiple_bonds'] = False
     cases=jobs(config,args.samples)
     if args.mode=='capacity':
         phis=sorted(float(x) for x in config['target_phis'])
@@ -231,7 +245,7 @@ def run(args):
         fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
         subprocess.run(['make','-B','build/demo_network','build/check_network_config'],cwd=ROOT,check=True)
         source_paths=sorted((ROOT/'src').glob('*.c'))+sorted((ROOT/'include').glob('*.h'))+sorted((ROOT/'scripts').rglob('*.py'))+[ROOT/'Makefile']
-        state=dict(config=config,storage_policy=args.storage_policy,binary=digest(ROOT/'build/demo_network'),
+        state=dict(config=config,allow_multiple_bonds=cfg.get('allow_multiple_bonds', True),storage_policy=args.storage_policy,binary=digest(ROOT/'build/demo_network'),
                    source_hashes={str(p.relative_to(ROOT)):digest(p) for p in source_paths})
         identity=hashlib.sha256(json.dumps(state,sort_keys=True).encode()).hexdigest()
         if (root/'study.json').exists() and read(root/'study.json')!=state:
@@ -303,6 +317,8 @@ def main():
     p.add_argument('--storage-policy',choices=['compact','full'],default='compact',
                    help='compact: no trajectories/candidates; full: retain all original CSVs; both retain bonds')
     p.add_argument('--max-storage-gib',type=float,default=20)
+    p.add_argument('--disallow-multiple-bonds', action='store_true',
+                   help='Allow at most one bond per molecular pair')
     p.add_argument('--retry-failed',action='store_true')
     p.add_argument('--no-plots',action='store_true')
     args=p.parse_args()

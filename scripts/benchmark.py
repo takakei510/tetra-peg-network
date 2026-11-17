@@ -49,8 +49,10 @@ def no_duplicate_keys(items):
 
 def load_config(path):
     config = json.loads(Path(path).read_text(), object_pairs_hook=no_duplicate_keys)
-    if set(config) != SETTINGS:
+    if set(config) - {'allow_multiple_bonds'} != SETTINGS:
         raise ValueError(f'設定キーの過不足: missing={SETTINGS-set(config)}, unknown={set(config)-SETTINGS}')
+    if type(config.get('allow_multiple_bonds', True)) is not bool:
+        raise ValueError('allow_multiple_bonds must be a JSON boolean')
     if type(config['schema_version']) is not int or config['schema_version'] != 1:
         raise ValueError('schema_versionは1のみ対応')
     for key in ('sizes', 'seeds', 'target_phis'):
@@ -185,11 +187,14 @@ def _execute_case(config, suite, case_id, L, phi, seed, repeat, storage_policy="
     run = suite / 'runs' / case_id
     run.mkdir(parents=True, exist_ok=False)
     cfg = run / 'config.cfg'
+    allow_multiple = config.get('allow_multiple_bonds', True)
     cfg.write_text(f'dim=3\nL={L}\nseed={seed}\ntarget_phi={phi}\n'
-                   f'arm_length={config["arm_length"]}\na_probability={config["a_probability"]}\n')
+                   f'arm_length={config["arm_length"]}\na_probability={config["a_probability"]}\n'
+                   f'allow_multiple_bonds={int(allow_multiple)}\n')
     result = {'case_id': case_id, 'L': L, 'target_phi': str(phi), 'seed': seed, 'repeat': repeat,
               'directory': str(run.relative_to(suite)), 'status': 'running', 'stages': {},
-              'generation_status': 'not_started', 'csv_files': [], 'storage_policy': storage_policy}
+              'generation_status': 'not_started', 'csv_files': [], 'storage_policy': storage_policy,
+              'allow_multiple_bonds': allow_multiple}
     atomic_json(run / 'performance.json', result)
     checked = subprocess.run([str(ROOT / 'build/check_network_config'), str(cfg)],
                              capture_output=True, text=True, check=False)

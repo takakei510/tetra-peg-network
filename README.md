@@ -238,3 +238,33 @@ python3 scripts/run_phi_detail.py full
 python3 scripts/run_phi_detail.py plan
 make test-detail
 ```
+
+## 1試料の実効抵抗を求める
+
+Cで生成した3次元・開境界の試料について、Pythonで分子コア間の成立結合を抵抗網として解析します。同じ実行フォルダの `config.cfg`・`trajectories.csv`・`bonds.csv` が必要です。CSVは gzip 版にも対応します。compact 保存で軌跡を省略した試料にはコア座標が必要です。
+
+```bash
+python -m pip install numpy scipy
+python scripts/analysis/analyze_resistance.py /path/to/sample --output-dir /path/to/new-result
+python tests/test_resistance.py
+```
+
+Colabでは最初に `from google.colab import drive; drive.mount("/content/drive")` を実行します。チェックアウトしたリポジトリを作業ディレクトリにし、上のコマンドの入力と出力を `/content/drive/MyDrive/` 以下のパスで指定してください。出力フォルダは新しい名前を選びます。
+
+初期値は x 方向の両端1層、電位1と0、全成立結合で同じ枝抵抗1です。変更時は `--settings` に JSON を渡します。省略したキーは初期値になります。
+
+```json
+{
+  "axis": "x",
+  "electrode_layers": 1,
+  "branch_resistance": 1.0,
+  "voltage_high": 1.0,
+  "voltage_low": 0.0
+}
+```
+
+- `resistance-summary.csv` に電極の分子数、貫通成分数、総電流、実効抵抗、基準枝抵抗で割った比と収支誤差を出力します。
+- `node-potentials.csv` と `bond-currents.csv` を元の分子ID・結合IDで対応付けられます。浮遊成分の電位は空欄です。
+- `analysis-run.json` に使用した入力のSHA-256、生成・解析設定、取得できるコミット、ライブラリ版が記録されます。
+
+両電極に分子がいて間をつなぐ成分がなければ `disconnected`、抵抗は `inf` です。片側でも接点がなければ `missing_electrode_contact` とし、抵抗欄を空欄にします。電気的な数値は仮想抵抗網のモデル単位です。

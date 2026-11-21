@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "sizes": [
+    16,
+    32
+  ],
+  "phi_percent": [
+    10,
+    45,
+    60
+  ],
+  "seeds": [
+    3,
+    4
+  ],
+  "arm_length": 5,
+  "a_probability": 0.5,
+  "attempts_per_molecule": 1000,
+  "minimum_attempts": 1000000,
+  "analysis": {
+    "axis": "x",
+    "electrode_layers": 1,
+    "branch_resistance": 1,
+    "voltage_high": 1,
+    "voltage_low": 0
+  }
+}
